@@ -1,6 +1,7 @@
 package com.jvmcode.networking;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
@@ -16,35 +17,138 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** @author Stephan Jaetzold <p><small>Created at 15.03.13, 16:34</small> */
+/**
+ * Implementation of the Simple Service Discovery Protocol (SSDP) part that discovers devices.
+ * The goal is to have no dependencies and provide device detection without the API user needing to know more than necessary about UPnP/SSDP.
+ * So all values have defaults and a simple <code>new SimpleServiceDiscovery().discover()</code> suffices to get a list of all UPnP devices
+ * in the current network.
+ * To search only for UPnP root devices use <code>discover(SimpleServiceDiscovery.SEARCH_TARGET_ROOTDEVICE)</code>.
+ *
+ * @author Stephan Jaetzold <p><small>Created at 15.03.13, 16:34</small>
+ */
+@SuppressWarnings("UnusedDeclaration")
 public class SimpleServiceDiscovery {
-	final int MULTICAST_PORT = 1900;
-	final String MULTICAST_ADDRESS = "239.255.255.250";
-	// http://www.upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf, Section 1, Page 15, Paragraph 3
-	// http://www.upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf, Section 1.3.2, Page 30, Paragraph 4
-	final int TTL = 2;	// this SHOULD be configurable
-	final int SEARCH_MX = 2;	// maximum response wait time
-	final int SO_TIMEOUT = SEARCH_MX*1000+2000;
-	final String SEARCH_TARGET = "ssdp:all";
-	final String USER_AGENT_OS = "Java";
-	final String USER_AGENT_OS_VERSION = System.getProperty("java.version");
-	final String USER_AGENT_PRODUCT = SimpleServiceDiscovery.class.getName();
-	final String USER_AGENT_PRODUCT_VERSION = "0.1";
+	static final int MULTICAST_PORT = 1900;
+	static final String MULTICAST_ADDRESS = "239.255.255.250";
+	static final String RESPONSE_MESSAGE_HEADER = "HTTP/1.1 200 OK\r\n";
 
-	final String SEARCH_MESSAGE =   "M-SEARCH * HTTP/1.1\r\n"
-										 + "HOST: " +MULTICAST_ADDRESS +":" +MULTICAST_PORT +"\r\n"
-										 + "MAN: \"ssdp:discover\"\r\n"
-										 + "MX: " +SEARCH_MX +"\r\n"
-										 + "ST: " +SEARCH_TARGET +"\r\n"
-										 + "USER-AGENT: " +USER_AGENT_OS+"/"+USER_AGENT_OS_VERSION +" UPnP/1.1 "
-										   +USER_AGENT_PRODUCT+"/"+ USER_AGENT_PRODUCT_VERSION+"\r\n"
-			;
-	final String RESPONSE_MESSAGE_HEADER = "HTTP/1.1 200 OK\r\n";
-
+	static final String USER_AGENT_OS = "Java";
+	static final String USER_AGENT_OS_VERSION = System.getProperty("java.version");
 	static final String CHARSET_NAME = "UTF-8";
 	static final Pattern HEADER_PATTERN = Pattern.compile("([^\\p{Cntrl} :]+):\\s*(.*)");
 
+	/**
+	 * The search target to discover all devices.
+	 */
+	public static final String SEARCH_TARGET_ALL = "ssdp:all";
+	/**
+	 * The search target to discover only UPnP root devices.
+	 */
+	public static final String SEARCH_TARGET_ROOTDEVICE = "upnp:rootdevice";
+
+	int searchMx = 2;	// maximum response wait time
+	String searchTarget = SEARCH_TARGET_ALL;
+	protected String userAgentProduct = SimpleServiceDiscovery.class.getName();
+	protected String userAgentProductVersion = "0.1";
+
+	final PrintStream debugLog;
+
+	// http://www.upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf, Section 1, Page 15, Paragraph 3
+	// http://www.upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf, Section 1.3.2, Page 30, Paragraph 4
+	int ttl = 2;	// this SHOULD be configurable
+	int socketTimeout = searchMx*1000+2000;
+
+	public SimpleServiceDiscovery() {
+		this(null);
+	}
+
+	/**
+	 * @param debugLog a PrintStream where debug loggings with e.g. the received packet contents are sent to.
+	 */
+	public SimpleServiceDiscovery(PrintStream debugLog) {
+		this.debugLog = debugLog;
+	}
+
+	/**
+	 * The maximum time a device should delay sending its answer in seconds.
+	 */
+	public int getSearchMx() {
+		return searchMx;
+	}
+
+	/**
+	 * @param searchMx The maximum time a device should delay sending its answer in seconds. Defaults to 2.
+	 */
+	public void setSearchMx(int searchMx) {
+		final int timeout = getSocketTimeout();
+		this.searchMx = searchMx;
+		setSocketTimeout(timeout);
+	}
+
+	/**
+	 * The current value for the the "ST" field of the search message.
+	 */
+	public String getSearchTarget() {
+		return searchTarget;
+	}
+
+	/**
+	 * What to include in the "ST" field of the search message.
+	 * See <a href="http://www.upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf">UPnP Device Architecture 1.1</a>,
+	 * page 31 for allowed values.
+	 * Or use one of the predefined constants {@link #SEARCH_TARGET_ALL} and {@link #SEARCH_TARGET_ROOTDEVICE}.
+	 * Defaults to {@link #SEARCH_TARGET_ALL}.
+	 *
+	 * @param searchTarget What to include in the "ST" field of the search message.
+	 */
+	public void setSearchTarget(String searchTarget) {
+		this.searchTarget = searchTarget;
+	}
+
+	/**
+	 * The time to live used for the multicast discovery message.
+	 */
+	public int getTimeToLive() {
+		return ttl;
+	}
+
+	/**
+	 * The time to live of the multicast discovery message. Defaults to 2.
+	 *
+	 * @param ttl The time to live of the multicast discovery message.
+	 */
+	public void setTimeToLive(int ttl) {
+		this.ttl = ttl;
+	}
+
+	/**
+	 * The time (in milliseconds) to wait for additional responses <em>after</em> {@link #searchMx} seconds have passed.
+	 */
+	public int getSocketTimeout() {
+		return socketTimeout-(searchMx*1000);
+	}
+
+	/**
+	 * Set the time (in milliseconds) to wait for additional responses <em>after</em> {@link #searchMx} seconds have passed.
+	 * Defaults to 2000.
+	 *
+	 * @param socketTimeout the time (in milliseconds) to wait
+	 */
+	public void setSocketTimeout(int socketTimeout) {
+		this.socketTimeout = searchMx*1000+socketTimeout;
+	}
+
+	/**
+	 * Send a SSDP search message and return a list of received responses.
+	 */
 	public List<? extends Response> discover() {
+		return discover(searchTarget);
+	}
+
+	/**
+	 * Send a SSDP search message with the given search target (ST) and return a list of received responses.
+	 */
+	public List<? extends Response> discover(String searchTarget) {
 		final InetAddress address;
 		// standard multicast port for SSDP
 		try {
@@ -62,7 +166,7 @@ public class SimpleServiceDiscovery {
 		}
 
 		try {
-			socket.setSoTimeout(SO_TIMEOUT);
+			socket.setSoTimeout(socketTimeout);
 		} catch(SocketException e) {
 			throw new IllegalStateException("Can not set socket timeout", e);
 		}
@@ -74,14 +178,14 @@ public class SimpleServiceDiscovery {
 		}
 
 		try {
-			socket.setTimeToLive(TTL);
+			socket.setTimeToLive(ttl);
 		} catch(IOException e) {
-			throw new IllegalStateException("Can not set TTL " +TTL, e);
+			throw new IllegalStateException("Can not set TTL " + ttl, e);
 		}
 
 		final byte[] transmitBuffer;
 		try {
-			transmitBuffer = SEARCH_MESSAGE.getBytes(CHARSET_NAME);
+			transmitBuffer = constructSearchMessage(searchTarget).getBytes(CHARSET_NAME);
 		} catch(UnsupportedEncodingException e) {
 			throw new IllegalStateException("WTF? " +CHARSET_NAME +" is not supported?", e);
 		}
@@ -104,7 +208,6 @@ public class SimpleServiceDiscovery {
 				final Response response = parseResponsePacket(receivePacket);
 				if(response!=null) {
 					result.add(response);
-					log(response.toString());
 				} else {
 					log("Response from " +receivePacket.getAddress() +" appears to not have the proper formatting. Ignoring it.");
 				}
@@ -115,6 +218,17 @@ public class SimpleServiceDiscovery {
 		}
 
 		return result;
+	}
+
+	String constructSearchMessage(String searchTarget) {
+		return "M-SEARCH * HTTP/1.1\r\n"
+			   + "HOST: " +MULTICAST_ADDRESS +":" +MULTICAST_PORT +"\r\n"
+			   + "MAN: \"ssdp:discover\"\r\n"
+			   + "MX: " + searchMx +"\r\n"
+			   + "ST: " + searchTarget +"\r\n"
+			   + "USER-AGENT: " +USER_AGENT_OS+"/"+USER_AGENT_OS_VERSION +" UPnP/1.1 "
+			     + userAgentProduct +"/"+ userAgentProductVersion +"\r\n"
+				;
 	}
 
 	Response parseResponsePacket(DatagramPacket responsePacket) {
@@ -138,7 +252,8 @@ public class SimpleServiceDiscovery {
 					final String header = matcher.group(1);
 					final String value = matcher.group(2);
 					if(response.headers.containsValue(header)) {
-						// according to RFC 2616, Section 4.2 this may only be the case for lists and in this case the values may be concatenated, separated by comma
+						// according to RFC 2616, Section 4.2 this may only be the case for lists
+						// and in this case the values may be concatenated, separated by comma
 						String existingValue = response.getHeader(header);
 						if(existingValue==null) {
 							existingValue = "";
@@ -167,6 +282,10 @@ public class SimpleServiceDiscovery {
 		return response;
 	}
 
+	/**
+	 * A single SSDP response.
+	 * The response originated from {@link #address} and the headers are accessible by {@link #getHeaders()} or {@link #getHeader(String)}.
+	 */
 	public static class Response {
 		final InetAddress address;
 		final Map<String,String> headers = new LinkedHashMap<>();
@@ -184,11 +303,11 @@ public class SimpleServiceDiscovery {
 		}
 
 		public String getHeader(String fieldName) {
-			return headers.get(fieldName);
+			return headers.get(fieldName.toUpperCase());
 		}
 
 		void setHeader(String fieldName, String fieldValue) {
-			headers.put(fieldName, fieldValue);
+			headers.put(fieldName.toUpperCase(), fieldValue);
 		}
 
 		@Override
@@ -203,20 +322,19 @@ public class SimpleServiceDiscovery {
 	}
 
 	private void log(String m) {
-		System.out.println(m);
-	}
-
-	private void log(DatagramPacket packet) {
-		InetAddress addr = packet.getAddress();
-		System.out.println("Response from: " + addr);
-		try {
-			System.out.println(new String(packet.getData(), 0, packet.getLength(), CHARSET_NAME));
-		} catch(UnsupportedEncodingException e) {
-			throw new IllegalStateException("WTF? " +CHARSET_NAME +" is not supported?", e);
+		if(debugLog!=null) {
+			debugLog.println(m);
 		}
 	}
 
-	public static void main(String[] argv) {
-		new SimpleServiceDiscovery().discover();
+	private void log(DatagramPacket packet) {
+		if(debugLog!=null) {
+			debugLog.println("Response from: " + packet.getAddress());
+			try {
+				debugLog.println(new String(packet.getData(), 0, packet.getLength(), CHARSET_NAME));
+			} catch(UnsupportedEncodingException e) {
+				throw new IllegalStateException("WTF? " +CHARSET_NAME +" is not supported?", e);
+			}
+		}
 	}
 }
