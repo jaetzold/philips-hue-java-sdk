@@ -73,8 +73,11 @@ public class HueHub {
 	}
 
 	public void setAuthToken(String authToken) {
+		if(authToken!=null && !authToken.matches("\\s*[-\\w]{10,40}\\s*")) {
+			throw new IllegalArgumentException("A username must be 10-40 characters long and may only contain the characters -,_,a-b,A-B,0-9");
+		}
 		authenticated &= equalEnough(this.authToken, authToken);
-		this.authToken = authToken;
+		this.authToken = authToken==null ? authToken : authToken.trim();
 	}
 
 	public boolean isAuthenticated() {
