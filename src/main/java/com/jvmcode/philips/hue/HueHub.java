@@ -40,10 +40,14 @@ public class HueHub {
 	 */
 	public static int discoveryAttempts = 3;
 
+	public static List<HueHub> discover() {
+		return HueHubComm.discover();
+	}
+
 	final HueHubComm comm;
 
 	String UDN;
-	String authToken;
+	String username;
 	boolean authenticated = false;
 	boolean initialSyncDone = false;
 
@@ -52,12 +56,12 @@ public class HueHub {
 	String name;
 	Map<Integer, HueLightBulb> lights = new TreeMap<>();
 
-	public HueHub(InetAddress address, String authToken) {
-		this(constructBaseUrlFor(address), authToken);
+	public HueHub(InetAddress address, String username) {
+		this(constructBaseUrlFor(address), username);
 	}
 
-	public HueHub(URL baseUrl, String authToken) {
-		this.authToken = authToken;
+	public HueHub(URL baseUrl, String username) {
+		this.username = username;
 		this.comm = new HueHubComm(baseUrl);
 	}
 
@@ -65,16 +69,16 @@ public class HueHub {
 		return comm.baseUrl;
 	}
 
-	public String getAuthToken() {
-		return authToken;
+	public String getUsername() {
+		return username;
 	}
 
-	public void setAuthToken(String authToken) {
-		if(authToken!=null && !authToken.matches("\\s*[-\\w]{10,40}\\s*")) {
+	public void setUsername(String username) {
+		if(username!=null && !username.matches("\\s*[-\\w]{10,40}\\s*")) {
 			throw new IllegalArgumentException("A username must be 10-40 characters long and may only contain the characters -,_,a-b,A-B,0-9");
 		}
-		authenticated &= equalEnough(this.authToken, authToken);
-		this.authToken = authToken==null ? authToken : authToken.trim();
+		authenticated &= equalEnough(this.username, username);
+		this.username = username==null ? username : username.trim();
 	}
 
 	public boolean isAuthenticated() {
@@ -82,7 +86,7 @@ public class HueHub {
 	}
 
 	public boolean authenticate(boolean waitForGrant) {
-		return authenticate(authToken, waitForGrant);
+		return authenticate(username, waitForGrant);
 	}
 
 	public String getName() {
@@ -93,14 +97,17 @@ public class HueHub {
 		return lights.values();
 	}
 
-	public boolean authenticate(String authTokenToTry, boolean waitForGrant) {
-		if(!isAuthenticated() || !equalEnough(authToken, authTokenToTry)) {
-			// if we have an authTokenToTry then check that first whether it already exists
+	public boolean authenticate(String usernameToTry, boolean waitForGrant) {
+		if(usernameToTry!=null && !usernameToTry.matches("\\s*[-\\w]{10,40}\\s*")) {
+			throw new IllegalArgumentException("A username must be 10-40 characters long and may only contain the characters -,_,a-b,A-B,0-9");
+		}
+
+		if(!isAuthenticated() || !equalEnough(username, usernameToTry)) {
+			// if we have an usernameToTry then check that first whether it already exists
 			// I just don't get why a "create new user" request for an existing user results in the same 101 error as when the user does not exist.
 			// But for this reason this additional preliminary request is necessary.
-			if(!equalEnough(null, authTokenToTry)) {
-				if(completeSync(authTokenToTry)) {
-					authToken = authTokenToTry;
+			if(!equalEnough(null, usernameToTry)) {
+				if(completeSync(usernameToTry)) {
 					authenticated = true;
 				}
 			}
@@ -113,16 +120,17 @@ public class HueHub {
 					try {
 						final JSONWriter jsonWriter = new JSONStringer().object()
 								.key("devicetype").value(deviceType);
-						if(authTokenToTry!=null && authTokenToTry.trim().length()>=10) {
-							jsonWriter.key("username").value(authTokenToTry.trim());
+						if(usernameToTry!=null && usernameToTry.trim().length()>=10) {
+							jsonWriter.key("username").value(usernameToTry.trim());
 						}
+						// use comm directly here because the user is not currently set
 						response = comm.request(POST, "api", jsonWriter.endObject().toString()).get(0);
 					} catch(IOException e) {
 						log.log(Level.WARNING, "IOException on create user request", e);
 					}
 					final JSONObject success = response.optJSONObject("success");
 					if(success!=null && success.has("username")) {
-						authToken = success.getString("username");
+						username = success.getString("username");
 						authenticated = true;
 						waitForGrant = false;
 					} else {
@@ -149,28 +157,10 @@ public class HueHub {
 		}
 
 		if(isAuthenticated() && !initialSyncDone) {
-			completeSync(authToken);
+			completeSync(username);
 		}
 
 		return isAuthenticated();
-	}
-
-
-	private static boolean equalEnough(String a, String b) {
-		// two strings are equal if either both are null/effectively empty or both represent the same string.
-		return (a==null || a.trim().equals("")) && (b==null || b.trim().equals("")) || a!=null && b!=null && a.equals(b);
-	}
-
-	public static List<HueHub> discover() {
-		return HueHubComm.discover();
-	}
-
-	private static URL constructBaseUrlFor(InetAddress address) {
-		try {
-			return new URL("http://" +address.getHostAddress() +"/");
-		} catch(MalformedURLException e) {
-			throw new IllegalArgumentException("Can not construct http URL from the given address", e);
-		}
 	}
 
 	private boolean completeSync(String authToken) {
@@ -181,6 +171,7 @@ public class HueHub {
 				if(datastore.has("config") && datastore.has("lights")) {
 					parseConfig(datastore.getJSONObject("config"));
 					parseLights(datastore.getJSONObject("lights"));
+					this.setUsername(authToken);
 					initialSyncDone = true;
 					return true;
 				}
@@ -224,6 +215,33 @@ public class HueHub {
 				log.log(Level.WARNING, "Exception on parsing lights result for key " +key, e);
 				throw new IllegalArgumentException("Lights result parsing failed. Probably some unexpected format?", e);
 			}
+		}
+	}
+
+	List<JSONObject> request(HueHubComm.RM method, String userPath, JSONObject json) throws IOException {
+		if(!isAuthenticated()) {
+			throw new IllegalStateException("User based requests need authentication first.");
+		}
+		return comm.request(method, "api/" + username.trim() +userPath, json);
+	}
+
+	List<JSONObject> request(HueHubComm.RM method, String userPath, String json) throws IOException {
+		if(!isAuthenticated()) {
+			throw new IllegalStateException("User based requests need authentication first.");
+		}
+		return comm.request(method, "api/" + username.trim() +userPath, json);
+	}
+
+	private static boolean equalEnough(String a, String b) {
+		// two strings are equal if either both are null/effectively empty or both represent the same string.
+		return (a==null || a.trim().equals("")) && (b==null || b.trim().equals("")) || a!=null && b!=null && a.equals(b);
+	}
+
+	private static URL constructBaseUrlFor(InetAddress address) {
+		try {
+			return new URL("http://" +address.getHostAddress() +"/");
+		} catch(MalformedURLException e) {
+			throw new IllegalArgumentException("Can not construct http URL from the given address", e);
 		}
 	}
 }

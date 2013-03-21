@@ -31,18 +31,18 @@ def discoverAndAuthenticate() {
     List<HueHub> hubs = HueHub.discover()
     for(HueHub hub : hubs) {
         println("Found hub at " + hub.baseUrl)
-        String t1 = 'IchBinHierUndWillWasVonDir'
-        String t2 = '8aefa072a354a7f113f6bf72b173e6f'
-        hub.authToken = t1;
+        String u1 = 'IchBinHierUndWillWasVonDir'
+        String u2 = '8aefa072a354a7f113f6bf72b173e6f'
+        hub.username = u1;
         if(!hub.authenticate(false)) {
             println("Press the button on your Hue hub in the next 30 seconds to grant access.")
             if(hub.authenticate(true)) {
-                println("Access granted. authToken: " + hub.authToken)
+                println("Access granted. username: " + hub.username)
             } else {
                 println("Authentication failed.")
             }
         } else {
-            println("Already granted access. authToken: " + hub.authToken)
+            println("Already granted access. username: " + hub.username)
         }
     }
     return hubs
