@@ -8,11 +8,17 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static com.jvmcode.philips.hue.HueHubComm.RM.*;
+import static com.jvmcode.philips.hue.HueLightBulb.ColorMode.*;
 
 /**
  *
@@ -33,13 +39,18 @@ public class HueHub {
 	 * Might not find existing hubs then if the network is very slow. 1-4 is acceptable.
 	 */
 	public static int discoveryAttempts = 3;
+
 	final HueHubComm comm;
 
 	String UDN;
 	String authToken;
 	boolean authenticated = false;
+	boolean initialSyncDone = false;
 
 	String deviceType = getClass().getName();
+
+	String name;
+	Map<Integer, HueLightBulb> lights = new TreeMap<>();
 
 	public HueHub(InetAddress address, String authToken) {
 		this(constructBaseUrlFor(address), authToken);
@@ -74,20 +85,23 @@ public class HueHub {
 		return authenticate(authToken, waitForGrant);
 	}
 
+	public String getName() {
+		return name;
+	}
+
+	public Collection<HueLightBulb> getLights() {
+		return lights.values();
+	}
+
 	public boolean authenticate(String authTokenToTry, boolean waitForGrant) {
 		if(!isAuthenticated() || !equalEnough(authToken, authTokenToTry)) {
 			// if we have an authTokenToTry then check that first whether it already exists
 			// I just don't get why a "create new user" request for an existing user results in the same 101 error as when the user does not exist.
 			// But for this reason this additional preliminary request is necessary.
 			if(!equalEnough(null, authTokenToTry)) {
-				try {
-					final List<JSONObject> response = comm.request(GET, "api/" + authTokenToTry.trim(), "");
-					if(response.size()>0 && !response.get(0).has("error")) {
-						authToken = authTokenToTry;
-						authenticated = true;
-					}
-				} catch(IOException e) {
-					log.log(Level.WARNING, "IOException on check grant request", e);
+				if(completeSync(authTokenToTry)) {
+					authToken = authTokenToTry;
+					authenticated = true;
 				}
 			}
 
@@ -133,6 +147,11 @@ public class HueHub {
 				} while(waitForGrant);
 			}
 		}
+
+		if(isAuthenticated() && !initialSyncDone) {
+			completeSync(authToken);
+		}
+
 		return isAuthenticated();
 	}
 
@@ -151,6 +170,60 @@ public class HueHub {
 			return new URL("http://" +address.getHostAddress() +"/");
 		} catch(MalformedURLException e) {
 			throw new IllegalArgumentException("Can not construct http URL from the given address", e);
+		}
+	}
+
+	private boolean completeSync(String authToken) {
+		try {
+			final List<JSONObject> response = comm.request(GET, "api/" + authToken.trim(), "");
+			if(response.size()>0) {
+				final JSONObject datastore = response.get(0);
+				if(datastore.has("config") && datastore.has("lights")) {
+					parseConfig(datastore.getJSONObject("config"));
+					parseLights(datastore.getJSONObject("lights"));
+					initialSyncDone = true;
+					return true;
+				}
+			}
+		} catch(IOException e) {
+			log.log(Level.WARNING, "IOException on get full state request", e);
+		}
+		return false;
+	}
+
+	private void parseConfig(JSONObject config) {
+		name = config.getString("name");
+	}
+
+	private void parseLights(JSONObject lightsJson) {
+		final Iterator<?> keys = lightsJson.keys();
+		while(keys.hasNext()) {
+			Object key = keys.next();
+			try {
+				Integer id = Integer.parseInt((String)key);
+				HueLightBulb light = lights.get(id);
+				if(light==null) {
+					light = new HueLightBulb(this, id);
+					lights.put(id, light);
+				}
+
+				final JSONObject lightJson = lightsJson.getJSONObject((String)key);
+				light.name = lightJson.getString("name");
+
+				final JSONObject state = lightJson.getJSONObject("state");
+				light.on = state.getBoolean("on");
+				light.brightness = state.getInt("bri");
+				light.hue = state.getInt("hue");
+				light.saturation = state.getInt("sat");
+				light.ciex = state.getJSONArray("xy").getDouble(0);
+				light.ciey = state.getJSONArray("xy").getDouble(1);
+				light.colorTemperature = state.getInt("ct");
+				light.colorMode = new HueLightBulb.ColorMode[]{HS,XY,CT}[Arrays.asList("hs","xy","ct").indexOf(state.getString("colormode").toLowerCase())];
+
+			} catch(Exception e) {
+				log.log(Level.WARNING, "Exception on parsing lights result for key " +key, e);
+				throw new IllegalArgumentException("Lights result parsing failed. Probably some unexpected format?", e);
+			}
 		}
 	}
 }

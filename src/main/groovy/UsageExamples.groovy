@@ -1,4 +1,5 @@
 import com.jvmcode.philips.hue.HueHub
+import com.jvmcode.philips.hue.HueLightBulb
 
 /**
  *
@@ -7,7 +8,24 @@ import com.jvmcode.philips.hue.HueHub
  */
 
 
-discoverAndAuthenticate()
+List<HueHub> hubs = discoverAndAuthenticate()
+
+if(hubs.isEmpty()) {
+    println("No hub found.")
+    System.exit(1)
+}
+HueHub hub = hubs.get(0)
+
+queryForLights(hub)
+
+
+def queryForLights(HueHub hub) {
+    Collection<HueLightBulb> lights = hub.lights
+    println(hub.name + " controls " + lights.size() + " lights:")
+    for(HueLightBulb light : lights) {
+        println(light)
+    }
+}
 
 def discoverAndAuthenticate() {
     List<HueHub> hubs = HueHub.discover()
