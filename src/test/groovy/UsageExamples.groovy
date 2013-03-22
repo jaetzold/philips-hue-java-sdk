@@ -7,21 +7,19 @@ import de.jaetzold.philips.hue.HueVirtualLightGroup
 /**
  Still to to:
 
- * Transactions need to remember the original state because this needs to be reset when it is not commited/the commit fails
- * Or instead just sync the state from the bridge in this case
- * Responses on State-Changes can contain multiple success/error entries. One for each state parameter.
-
- * auto-update internal state in intervals to sync with external changes. Maybe only on state access after interval.
- * ? Events on (even external) state changes. External will only be enabled when there is a listener to preserve resources.
-
  * discover of new lights. Maybe only on access after interval.
  * auto-update internal state of bridge. Maybe only on access after interval.
+
+ * ? Events on (even external) state changes. External will only be enabled when there is a listener to preserve resources.
  * ? Events on lights changes/bridge state changes. External will only be enabled when there is a listener to preserve resources.
 
  Future
- * Group creation/deletion when Bridge API supports deletion.
+ * Group creation/deletion when Bridge API supports that.
  * Schedules support.
- * Extended configuration support (List/delete Users)
+ * Extended configuration support (e.g. list/delete Users)
+ * Maybe get transactions to be able to completely rollback. Especially with nested transactions involved it is currently possible that
+   an inner transaction is already committed if an outer transaction fails. And the bridge may only have success in setting part of the state
+   that got committed. Maybe the state before could be remembered an then set back? This is not so easy to ensure...
 
  * @author Stephan Jaetzold
  * <p><small>Created at 15.03.13, 16:23</small>
@@ -80,6 +78,21 @@ virtualGroup.stateChangeTransaction(2000) {
     virtualGroup.brightness = 255
 }
 
+pollForExternalStateChanges(light, 30000)
+
+def pollForExternalStateChanges(HueLightBulb light, int pollMillis) {
+    def start = System.currentTimeMillis()
+    boolean lastOn = light.on
+    print("polling on state changes for $light: ")
+    while(System.currentTimeMillis()-start<pollMillis) {
+        boolean nowOn = light.on
+        if(nowOn!=lastOn) {
+            print(nowOn ? "ON " : "OFF ")
+        }
+        lastOn = nowOn
+    }
+    println()
+}
 
 def listVirtualGroups(HueBridge bridge) {
     Collection<HueVirtualLightGroup> virtualGroups = bridge.virtualGroups

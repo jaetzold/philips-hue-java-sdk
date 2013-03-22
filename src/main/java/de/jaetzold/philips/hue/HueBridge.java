@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -21,7 +20,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static de.jaetzold.philips.hue.HueBridgeComm.RM.*;
-import static de.jaetzold.philips.hue.HueLight.ColorMode.*;
 
 /**
  *
@@ -177,6 +175,7 @@ public class HueBridge {
 					completeSync(usernameToTry);
 					authenticated = true;
 				} catch(HueCommException e) {
+					e.printStackTrace();
 				}
 			}
 
@@ -278,24 +277,7 @@ public class HueBridge {
 				}
 
 				final JSONObject lightJson = lightsJson.getJSONObject((String)key);
-				light.name = lightJson.getString("name");
-
-				final JSONObject state = lightJson.getJSONObject("state");
-				light.on = state.getBoolean("on");
-				light.brightness = state.getInt("bri");
-				light.hue = state.getInt("hue");
-				light.saturation = state.getInt("sat");
-				light.ciex = state.getJSONArray("xy").getDouble(0);
-				light.ciey = state.getJSONArray("xy").getDouble(1);
-				light.colorTemperature = state.getInt("ct");
-				light.colorMode = new HueLightBulb.ColorMode[]{HS,XY,CT}[Arrays.asList("hs","xy","ct").indexOf(state.getString("colormode").toLowerCase())];
-				final HueLightBulb.Effect effect = HueLight.Effect.fromName(state.getString("effect"));
-				if(effect==null) {
-					//noinspection ThrowCaughtLocally
-					throw new HueCommException("Can not find effect named \"" +state.getString("effect") +"\"");
-				}
-				light.effect = effect;
-
+				light.parseLight(lightJson);
 			} catch(Exception e) {
 				if(e instanceof HueCommException) {
 					throw e;
@@ -345,8 +327,10 @@ public class HueBridge {
 
 	List<JSONObject> checkedSuccessRequest(HueBridgeComm.RM method, String userPath, Object json) {
 		final List<JSONObject> response = request(method, userPath, json);
-		if(!response.get(0).has("success")) {
-			throw new HueCommException(response.get(0).getJSONObject("error"));
+		for(JSONObject entry : response) {
+			if(!entry.has("success")) {
+				throw new HueCommException(entry.getJSONObject("error"));
+			}
 		}
 		return response;
 	}

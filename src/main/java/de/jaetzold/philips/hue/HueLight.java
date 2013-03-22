@@ -38,6 +38,9 @@ public interface HueLight {
 	// Beware: This only changes the state of _this_ light in bulk. Any other light changed by the runnable is changed directly
 	// If more lights should be changed in one transaction it is possible by nesting runnables that call stateChangeTransaction on other lights.
 	// transactions on the same light can not be nested. This will result in an exception.
+	// Do not expect transactions to always completely rollback. Especially with nested transactions involved it is possible that
+	// an inner transaction is already committed if an outer transaction fails. And the bridge may only have success in setting part of the state
+	// that got committed. But we're dealing with light here and not financial data, so i guess that's probably o.k.
 	void stateChangeTransaction(Integer transitionTime, Runnable changes);
 
 	public static enum ColorMode {

@@ -8,7 +8,8 @@ import org.json.JSONWriter;
 import java.util.Arrays;
 import java.util.List;
 
-import static de.jaetzold.philips.hue.HueBridgeComm.RM.PUT;
+import static de.jaetzold.philips.hue.HueBridgeComm.RM.*;
+import static de.jaetzold.philips.hue.HueLight.ColorMode.*;
 
 /**
  *
@@ -33,6 +34,9 @@ public class HueLightBulb implements HueLight {
 
 	ColorMode colorMode;
 	Integer transitionTime;
+
+	int autoSyncInterval = 1000;
+	long lastSyncTime;
 
 	HueLightBulb(HueBridge bridge, Integer id) {
 		if(id==null || id<0) {
@@ -65,8 +69,17 @@ public class HueLightBulb implements HueLight {
 		this.transitionTime = transitionTime;
 	}
 
+	public int getAutoSyncInterval() {
+		return autoSyncInterval;
+	}
+
+	public void setAutoSyncInterval(int autoSyncInterval) {
+		this.autoSyncInterval = autoSyncInterval;
+	}
+
 	@Override
 	public String getName() {
+		checkSync();
 		return name;
 	}
 
@@ -81,6 +94,7 @@ public class HueLightBulb implements HueLight {
 	}
 
 	public boolean isOn() {
+		checkSync();
 		return on;
 	}
 
@@ -91,6 +105,7 @@ public class HueLightBulb implements HueLight {
 	}
 
 	public int getBrightness() {
+		checkSync();
 		return brightness;
 	}
 
@@ -104,6 +119,7 @@ public class HueLightBulb implements HueLight {
 	}
 
 	public int getHue() {
+		checkSync();
 		return hue;
 	}
 
@@ -118,6 +134,7 @@ public class HueLightBulb implements HueLight {
 	}
 
 	public int getSaturation() {
+		checkSync();
 		return saturation;
 	}
 
@@ -132,6 +149,7 @@ public class HueLightBulb implements HueLight {
 	}
 
 	public double getCiex() {
+		checkSync();
 		return ciex;
 	}
 
@@ -141,6 +159,7 @@ public class HueLightBulb implements HueLight {
 	}
 
 	public double getCiey() {
+		checkSync();
 		return ciey;
 	}
 
@@ -161,6 +180,7 @@ public class HueLightBulb implements HueLight {
 	}
 
 	public int getColorTemperature() {
+		checkSync();
 		return colorTemperature;
 	}
 
@@ -175,6 +195,7 @@ public class HueLightBulb implements HueLight {
 	}
 
 	public Effect getEffect() {
+		checkSync();
 		return effect;
 	}
 
@@ -201,7 +222,7 @@ public class HueLightBulb implements HueLight {
 			   +(getColorMode()==ColorMode.HS ? "HS:"+getHue() +"/" +getSaturation() : "")
 			   +(getColorMode()==ColorMode.XY ? "XY:"+getCiex() +"/" +getCiey() : "")
 			   + ","
-			   +"BRI:" +getBrightness()
+			   +"BRI:" +getBrightness() +","
 			   +(getEffect()!=Effect.NONE ? getEffect() : "")
 			   +"]";
 	}
@@ -210,12 +231,18 @@ public class HueLightBulb implements HueLight {
 	public void stateChangeTransaction(Integer transitionTime, Runnable changes) {
 		openStateChangeTransaction(transitionTime);
 		try {
-			changes.run();
+			try {
+				changes.run();
+			} catch(Throwable t) {
+				stateTransactionJson.set(null);
+				//noinspection ThrowCaughtLocally
+				throw t;
+			} finally {
+				commitStateChangeTransaction();
+			}
 		} catch(Throwable t) {
-			stateTransactionJson.set(null);
-			throw t;
-		} finally {
-			commitStateChangeTransaction();
+			// do kind of rollback by syncing the state from the bridge
+			sync();
 		}
 	}
 
@@ -249,6 +276,43 @@ public class HueLightBulb implements HueLight {
 			stateTransaction.put(param, value);
 			return null;
 		}
+	}
+
+	private void checkSync() {
+		final long now = System.currentTimeMillis();
+		if(autoSyncInterval>0 && now-lastSyncTime>autoSyncInterval) {
+			sync();
+		}
+	}
+
+	private void sync() {
+		final JSONObject response = bridge.request(GET, "/lights/" + getId(), "").get(0);
+		if(response.has("error")) {
+			throw new HueCommException(response.getJSONObject("error"));
+		} else {
+			parseLight(response);
+		}
+	}
+
+	void parseLight(JSONObject lightJson) {
+		name = lightJson.getString("name");
+
+		final JSONObject state = lightJson.getJSONObject("state");
+		on = state.getBoolean("on");
+		brightness = state.getInt("bri");
+		hue = state.getInt("hue");
+		saturation = state.getInt("sat");
+		ciex = state.getJSONArray("xy").getDouble(0);
+		ciey = state.getJSONArray("xy").getDouble(1);
+		colorTemperature = state.getInt("ct");
+		colorMode = new HueLightBulb.ColorMode[]{HS,XY,CT}[Arrays.asList("hs", "xy", "ct").indexOf(state.getString("colormode").toLowerCase())];
+		final HueLightBulb.Effect effect = HueLight.Effect.fromName(state.getString("effect"));
+		if(effect==null) {
+			throw new HueCommException("Can not find effect named \"" +state.getString("effect") +"\"");
+		}
+		this.effect = effect;
+
+		lastSyncTime = System.currentTimeMillis();
 	}
 
 	/**
