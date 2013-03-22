@@ -3,9 +3,6 @@ import de.jaetzold.philips.hue.HueLightBulb
 
 /**
  Still to to:
- * light alert
- * light effect
-
  * group as a variant of light (has the same properties and capabilities after all)
  * Will not create new groups on bridge until delete is possible (Groups are limited to 16 and i don't want to be responsible for this being full)
  * ? SDK-Internal group implementation that actually syncs state of lights without a group on the bridge
