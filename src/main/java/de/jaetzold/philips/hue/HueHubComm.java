@@ -1,6 +1,6 @@
-package com.jvmcode.philips.hue;
+package de.jaetzold.philips.hue;
 
-import com.jvmcode.networking.SimpleServiceDiscovery;
+import de.jaetzold.networking.SimpleServiceDiscovery;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.w3c.dom.Document;

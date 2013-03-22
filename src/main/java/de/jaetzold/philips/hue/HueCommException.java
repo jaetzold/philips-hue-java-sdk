@@ -1,4 +1,4 @@
-package com.jvmcode.philips.hue;
+package de.jaetzold.philips.hue;
 
 import org.json.JSONObject;
 

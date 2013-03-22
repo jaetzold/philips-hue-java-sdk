@@ -1,11 +1,9 @@
-package com.jvmcode.philips.hue;
+package de.jaetzold.philips.hue;
 
 import org.json.JSONObject;
 import org.json.JSONStringer;
 
-import java.util.List;
-
-import static com.jvmcode.philips.hue.HueHubComm.RM.PUT;
+import static de.jaetzold.philips.hue.HueHubComm.RM.PUT;
 
 /** @author Stephan Jaetzold <p><small>Created at 20.03.13, 14:59</small> */
 public class HueLightBulb {

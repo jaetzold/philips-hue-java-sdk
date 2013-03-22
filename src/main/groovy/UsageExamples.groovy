@@ -1,5 +1,5 @@
-import com.jvmcode.philips.hue.HueHub
-import com.jvmcode.philips.hue.HueLightBulb
+import de.jaetzold.philips.hue.HueHub
+import de.jaetzold.philips.hue.HueLightBulb
 
 /**
  *

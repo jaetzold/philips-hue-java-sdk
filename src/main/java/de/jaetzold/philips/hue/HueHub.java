@@ -1,4 +1,4 @@
-package com.jvmcode.philips.hue;
+package de.jaetzold.philips.hue;
 
 import org.json.JSONObject;
 import org.json.JSONStringer;
@@ -17,9 +17,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import static com.jvmcode.philips.hue.HueHubComm.RM.*;
-import static com.jvmcode.philips.hue.HueLightBulb.ColorMode.*;
 
 /**
  *
