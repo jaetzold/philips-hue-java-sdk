@@ -18,14 +18,14 @@ import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import static de.jaetzold.philips.hue.HueHubComm.RM.*;
+import static de.jaetzold.philips.hue.HueBridgeComm.RM.*;
 import static de.jaetzold.philips.hue.HueLightBulb.ColorMode.*;
 
 /**
  *
  * @author Stephan Jaetzold <p><small>Created at 20.03.13, 15:10</small>
  */
-public class HueHub {
+public class HueBridge {
 	Logger log = Logger.getLogger(this.getClass().getName());
 
 	/**
@@ -41,11 +41,11 @@ public class HueHub {
 	 */
 	public static int discoveryAttempts = 3;
 
-	public static List<HueHub> discover() {
-		return HueHubComm.discover();
+	public static List<HueBridge> discover() {
+		return HueBridgeComm.discover();
 	}
 
-	final HueHubComm comm;
+	final HueBridgeComm comm;
 
 	String UDN;
 	String username;
@@ -63,13 +63,13 @@ public class HueHub {
 	 * @param address The IP Adress of the Philips Hue Bridge
 	 * @param username A username to authenticate with. May be null (in which case one will be generated on successful authentication)
 	 */
-	public HueHub(InetAddress address, String username) {
+	public HueBridge(InetAddress address, String username) {
 		this(constructBaseUrlFor(address), username);
 	}
 
-	HueHub(URL baseUrl, String username) {
+	HueBridge(URL baseUrl, String username) {
 		this.username = username;
-		this.comm = new HueHubComm(baseUrl);
+		this.comm = new HueBridgeComm(baseUrl);
 	}
 
 	public URL getBaseUrl() {
@@ -265,7 +265,7 @@ public class HueHub {
 		}
 	}
 
-	List<JSONObject> checkedSuccessRequest(HueHubComm.RM method, String userPath, Object json) {
+	List<JSONObject> checkedSuccessRequest(HueBridgeComm.RM method, String userPath, Object json) {
 		final List<JSONObject> response = request(method, userPath, json);
 		if(!response.get(0).has("success")) {
 			throw new HueCommException(response.get(0).getJSONObject("error"));
@@ -273,7 +273,7 @@ public class HueHub {
 		return response;
 	}
 
-	List<JSONObject> request(HueHubComm.RM method, String userPath, Object json) {
+	List<JSONObject> request(HueBridgeComm.RM method, String userPath, Object json) {
 		checkAuthAndSync();
 		try {
 			return comm.request(method, "api/" + username.trim() +userPath, json.toString());

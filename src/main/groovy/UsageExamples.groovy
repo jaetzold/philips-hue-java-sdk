@@ -1,4 +1,4 @@
-import de.jaetzold.philips.hue.HueHub
+import de.jaetzold.philips.hue.HueBridge
 import de.jaetzold.philips.hue.HueLightBulb
 
 /**
@@ -7,15 +7,15 @@ import de.jaetzold.philips.hue.HueLightBulb
  * light effect
 
  * group as a variant of light (has the same properties and capabilities after all)
- * Will not create new groups on hub until delete is possible (Groups are limited to 16 and i don't want to be responsible for this being full)
- * ? SDK-Internal group implementation that actually syncs state of lights without a group on the hub
+ * Will not create new groups on bridge until delete is possible (Groups are limited to 16 and i don't want to be responsible for this being full)
+ * ? SDK-Internal group implementation that actually syncs state of lights without a group on the bridge
 
  * auto-update internal state in intervals to sync with external changes. Maybe only on state access after interval.
  * ? Events on (even external) state changes. External will only be enabled when there is a listener to preserve resources.
 
  * discover of new lights. Maybe only on access after interval.
- * auto-update internal state of hub. Maybe only on access after interval.
- * ? Events on lights changes/hub state changes. External will only be enabled when there is a listener to preserve resources.
+ * auto-update internal state of bridge. Maybe only on access after interval.
+ * ? Events on lights changes/bridge state changes. External will only be enabled when there is a listener to preserve resources.
 
  Future
  * Group creation/deletion when Bridge API supports deletion.
@@ -26,24 +26,24 @@ import de.jaetzold.philips.hue.HueLightBulb
  * <p><small>Created at 15.03.13, 16:23</small>
  */
 
-List<HueHub> hubs = discoverAndAuthenticate()
+List<HueBridge> bridges = discoverAndAuthenticate()
 
-if(hubs.isEmpty()) {
-    println("No hub found.")
+if(bridges.isEmpty()) {
+    println("No bridge found.")
     System.exit(1)
 }
-HueHub hub = hubs.get(0)
+HueBridge bridge = bridges.get(0)
 
-listLights(hub)
+listLights(bridge)
 
-hub.setName("Jaetzold's Hue")
-println("After changing name: " +hub)
+bridge.setName("Jaetzold's Hue")
+println("After changing name: " +bridge)
 
-if(hubs.lights.isEmpty()) {
+if(bridges.lights.isEmpty()) {
     println("No lights found.")
     System.exit(2)
 }
-HueLightBulb light = hub.getLight(hub.lightIds[0])
+HueLightBulb light = bridge.getLight(bridge.lightIds[0])
 
 light.transitionTime = 1    // this is used in all subsequent (non-transactional) state changes. 'null' uses the bridges default
 light.on = true;
@@ -217,31 +217,31 @@ def blinkOnce(HueLightBulb light, int waitMillis) {
     Thread.sleep(waitMillis);
 }
 
-def listLights(HueHub hub) {
-    Collection<HueLightBulb> lights = hub.lights
-    println(hub.name + " controls " + lights.size() + " lights:")
+def listLights(HueBridge bridge) {
+    Collection<HueLightBulb> lights = bridge.lights
+    println(bridge.name + " controls " + lights.size() + " lights:")
     for(HueLightBulb light : lights) {
         println(light)
     }
 }
 
 def discoverAndAuthenticate() {
-    List<HueHub> hubs = HueHub.discover()
-    for(HueHub hub : hubs) {
-        println("Found " + hub)
+    List<HueBridge> bridges = HueBridge.discover()
+    for(HueBridge bridge : bridges) {
+        println("Found " + bridge)
         String u1 = 'IchBinHierUndWillWasVonDir'
         String u2 = '8aefa072a354a7f113f6bf72b173e6f'
-        hub.username = u1;
-        if(!hub.authenticate(false)) {
-            println("Press the button on your Hue hub in the next 30 seconds to grant access.")
-            if(hub.authenticate(true)) {
-                println("Access granted. username: " + hub.username)
+        bridge.username = u1;
+        if(!bridge.authenticate(false)) {
+            println("Press the button on your Hue bridge in the next 30 seconds to grant access.")
+            if(bridge.authenticate(true)) {
+                println("Access granted. username: " + bridge.username)
             } else {
                 println("Authentication failed.")
             }
         } else {
-            println("Already granted access. username: " + hub.username)
+            println("Already granted access. username: " + bridge.username)
         }
     }
-    return hubs
+    return bridges
 }

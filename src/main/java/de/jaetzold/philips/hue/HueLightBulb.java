@@ -8,7 +8,7 @@ import org.json.JSONWriter;
 import java.util.Arrays;
 import java.util.List;
 
-import static de.jaetzold.philips.hue.HueHubComm.RM.PUT;
+import static de.jaetzold.philips.hue.HueBridgeComm.RM.PUT;
 
 /** @author Stephan Jaetzold <p><small>Created at 20.03.13, 14:59</small> */
 public class HueLightBulb {
@@ -18,7 +18,7 @@ public class HueLightBulb {
 	public static final int HUE_BLUE = 46920;
 
 	final Integer id;
-	final HueHub hub;
+	final HueBridge bridge;
 
 	String name;
 
@@ -75,14 +75,14 @@ public class HueLightBulb {
 		}
 	}
 
-	HueLightBulb(HueHub hub, Integer id) {
+	HueLightBulb(HueBridge bridge, Integer id) {
 		if(id==null || id<0) {
 			throw new IllegalArgumentException("id has to be non-negative and non-null");
 		}
-		if(hub==null) {
+		if(bridge==null) {
 			throw new IllegalArgumentException("hub may not be null");
 		}
-		this.hub = hub;
+		this.bridge = bridge;
 		this.id = id;
 	}
 
@@ -90,8 +90,8 @@ public class HueLightBulb {
 		return id;
 	}
 
-	public HueHub getHub() {
-		return hub;
+	public HueBridge getBridge() {
+		return bridge;
 	}
 
 	public Integer getTransitionTime() {
@@ -110,7 +110,7 @@ public class HueLightBulb {
 		if(name==null || name.trim().length()>32) {
 			throw new IllegalArgumentException("Name (without leading or trailing whitespace) has to be less than 32 characters long");
 		}
-		final JSONObject response = hub.checkedSuccessRequest(PUT, "/lights/" +id, JO().key("name").value(name)).get(0);
+		final JSONObject response = bridge.checkedSuccessRequest(PUT, "/lights/" +id, JO().key("name").value(name)).get(0);
 		final String actualName = response.getJSONObject("success").optString("/lights/" + id + "/name");
 		this.name = actualName!=null ? actualName : name;
 	}
@@ -261,7 +261,7 @@ public class HueLightBulb {
 	private List<JSONObject> commitStateChangeTransaction() {
 		final JSONObject json = stateTransactionJson.get();
 		stateTransactionJson.set(null);
-		return hub.checkedSuccessRequest(PUT, "/lights/" + getId() + "/state", json);
+		return bridge.checkedSuccessRequest(PUT, "/lights/" + getId() + "/state", json);
 	}
 
 	private List<JSONObject> stateChange(String param, Object value) {
@@ -271,7 +271,7 @@ public class HueLightBulb {
 			if(transitionTime!=null) {
 				json = json.key("transitiontime").value(transitionTime);
 			}
-			return hub.checkedSuccessRequest(PUT, "/lights/" + getId() + "/state", json.key(param).value(value));
+			return bridge.checkedSuccessRequest(PUT, "/lights/" + getId() + "/state", json.key(param).value(value));
 		} else {
 			stateTransaction.put(param, value);
 			return null;

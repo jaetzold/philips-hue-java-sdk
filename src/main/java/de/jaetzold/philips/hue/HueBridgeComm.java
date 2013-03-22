@@ -23,7 +23,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /** @author Stephan Jaetzold <p><small>Created at 21.03.13, 15:06</small> */
-class HueHubComm {
+class HueBridgeComm {
 	Logger log = Logger.getLogger(this.getClass().getName());
 
 	final URL baseUrl;
@@ -32,7 +32,7 @@ class HueHubComm {
 		GET,POST,PUT,DELETE
 	}
 
-	HueHubComm(URL baseUrl) {
+	HueBridgeComm(URL baseUrl) {
 		this.baseUrl = baseUrl;
 	}
 
@@ -78,11 +78,11 @@ class HueHubComm {
 		return result;
 	}
 
-	static List<HueHub> discover() {
-		final Logger log = Logger.getLogger(HueHub.class.getName());
+	static List<HueBridge> discover() {
+		final Logger log = Logger.getLogger(HueBridge.class.getName());
 		final SimpleServiceDiscovery serviceDiscovery = new SimpleServiceDiscovery();
 		int attempted = 0;
-		int maxAttempts = Math.min(4, Math.max(1, HueHub.discoveryAttempts));
+		int maxAttempts = Math.min(4, Math.max(1, HueBridge.discoveryAttempts));
 		Map<String, URL> foundHubs = new HashMap<>();
 		// if nothing is found the first time try up to maxAttempts times with increasing timeouts
 		while(foundHubs.isEmpty() && attempted<maxAttempts) {
@@ -124,14 +124,14 @@ class HueHubComm {
 					}
 				}
 			} catch(Exception e) {
-				HueHub.lastDiscoveryException = e;
+				HueBridge.lastDiscoveryException = e;
 				log.log(Level.INFO, "Exception when dicovering devices", e);
 			}
 			attempted++;
 		}
-		List<HueHub> result = new ArrayList<>();
+		List<HueBridge> result = new ArrayList<>();
 		for(Map.Entry<String, URL> entry : foundHubs.entrySet()) {
-			final HueHub hub = new HueHub(entry.getValue(), null);
+			final HueBridge hub = new HueBridge(entry.getValue(), null);
 			hub.UDN = entry.getKey();
 			result.add(hub);
 		}
