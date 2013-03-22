@@ -1,11 +1,16 @@
 import de.jaetzold.philips.hue.HueBridge
+import de.jaetzold.philips.hue.HueLight
 import de.jaetzold.philips.hue.HueLightBulb
+import de.jaetzold.philips.hue.HueLightGroup
 
 /**
  Still to to:
  * group as a variant of light (has the same properties and capabilities after all)
  * Will not create new groups on bridge until delete is possible (Groups are limited to 16 and i don't want to be responsible for this being full)
  * ? SDK-Internal group implementation that actually syncs state of lights without a group on the bridge
+
+ * Transactions need to remember the original state because this needs to be reset when it is not commited/the commit fails
+ * Or instead just sync the state from the bridge in this case
 
  * auto-update internal state in intervals to sync with external changes. Maybe only on state access after interval.
  * ? Events on (even external) state changes. External will only be enabled when there is a listener to preserve resources.
@@ -32,6 +37,7 @@ if(bridges.isEmpty()) {
 HueBridge bridge = bridges.get(0)
 
 listLights(bridge)
+listGroups(bridge)
 
 bridge.setName("Jaetzold's Hue")
 println("After changing name: " +bridge)
@@ -45,6 +51,8 @@ HueLightBulb light = bridge.getLight(bridge.lightIds[0])
 light.transitionTime = 1    // this is used in all subsequent (non-transactional) state changes. 'null' uses the bridges default
 light.on = true;
 blinkOnce(light, 1000)
+HueLightGroup group = bridge.getGroup(0)
+blinkOnce(group, 1000)      // Groups and LightBulbs share the same interface (containing only the state setters though)
 
 sweepBrightness(light, 1000)
 sweepHueSaturation(light, 1000)
@@ -206,12 +214,20 @@ def sweepBrightness(HueLightBulb light, int waitMillis) {
     Thread.sleep(waitMillis)
 }
 
-def blinkOnce(HueLightBulb light, int waitMillis) {
+def blinkOnce(HueLight light, int waitMillis) {
     println("blinkOnce '$light.name'")
-    light.on = !light.on;
+    light.on = false;
     Thread.sleep(waitMillis);
-    light.on = !light.on;
+    light.on = true;
     Thread.sleep(waitMillis);
+}
+
+def listGroups(HueBridge bridge) {
+    Collection<HueLightGroup> groups = bridge.groups
+    println(bridge.name + " has " + groups.size() + " groups:")
+    for(HueLightGroup group : groups) {
+        println(group)
+    }
 }
 
 def listLights(HueBridge bridge) {
@@ -226,9 +242,7 @@ def discoverAndAuthenticate() {
     List<HueBridge> bridges = HueBridge.discover()
     for(HueBridge bridge : bridges) {
         println("Found " + bridge)
-        String u1 = 'IchBinHierUndWillWasVonDir'
-        String u2 = '8aefa072a354a7f113f6bf72b173e6f'
-        bridge.username = u1;
+        bridge.username = '8aefa072a354a7f113f6bf72b173e6f';
         if(!bridge.authenticate(false)) {
             println("Press the button on your Hue bridge in the next 30 seconds to grant access.")
             if(bridge.authenticate(true)) {

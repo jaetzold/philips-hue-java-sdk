@@ -83,9 +83,9 @@ class HueBridgeComm {
 		final SimpleServiceDiscovery serviceDiscovery = new SimpleServiceDiscovery();
 		int attempted = 0;
 		int maxAttempts = Math.min(4, Math.max(1, HueBridge.discoveryAttempts));
-		Map<String, URL> foundHubs = new HashMap<>();
+		Map<String, URL> foundBriges = new HashMap<>();
 		// if nothing is found the first time try up to maxAttempts times with increasing timeouts
-		while(foundHubs.isEmpty() && attempted<maxAttempts) {
+		while(foundBriges.isEmpty() && attempted<maxAttempts) {
 			serviceDiscovery.setSearchMx(1+attempted);
 			serviceDiscovery.setSocketTimeout(500 + attempted*1500);
 			final List<? extends SimpleServiceDiscovery.Response> responses =
@@ -95,7 +95,7 @@ class HueBridgeComm {
 					String urlBase = null;
 					final String usn = response.getHeader("USN");
 					if(usn!=null && usn.matches("uuid:[-\\w]+")) {
-						if(!foundHubs.containsKey(usn)) {
+						if(!foundBriges.containsKey(usn)) {
 							final String server = response.getHeader("SERVER");
 							if(server!=null && server.contains("IpBridge")) {
 								final String location = response.getHeader("LOCATION");
@@ -120,7 +120,7 @@ class HueBridgeComm {
 						}
 					}
 					if(urlBase!=null) {
-						foundHubs.put(usn, new URL(urlBase));
+						foundBriges.put(usn, new URL(urlBase));
 					}
 				}
 			} catch(Exception e) {
@@ -130,10 +130,10 @@ class HueBridgeComm {
 			attempted++;
 		}
 		List<HueBridge> result = new ArrayList<>();
-		for(Map.Entry<String, URL> entry : foundHubs.entrySet()) {
-			final HueBridge hub = new HueBridge(entry.getValue(), null);
-			hub.UDN = entry.getKey();
-			result.add(hub);
+		for(Map.Entry<String, URL> entry : foundBriges.entrySet()) {
+			final HueBridge bridge = new HueBridge(entry.getValue(), null);
+			bridge.UDN = entry.getKey();
+			result.add(bridge);
 		}
 		return result;
 	}

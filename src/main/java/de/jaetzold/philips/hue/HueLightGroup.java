@@ -6,30 +6,29 @@ import org.json.JSONStringer;
 import org.json.JSONWriter;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 import static de.jaetzold.philips.hue.HueBridgeComm.RM.PUT;
 
-/** @author Stephan Jaetzold <p><small>Created at 20.03.13, 14:59</small> */
-public class HueLightBulb implements HueLight {
+/** @author Stephan Jaetzold <p><small>Created at 22.03.13, 14:10</small> */
+public class HueLightGroup implements HueLight {
 	final Integer id;
 	final HueBridge bridge;
 
 	String name;
+	final Map<Integer, HueLightBulb> lights;
 
-	boolean on;
-	int brightness;
-	int hue;
-	int saturation;
-	double ciex;
-	double ciey;
-	int colorTemperature;
-	Effect effect;
-
-	ColorMode colorMode;
 	Integer transitionTime;
 
-	HueLightBulb(HueBridge bridge, Integer id) {
+	public HueLightGroup(HueBridge bridge, Integer id) {
+		this(bridge, id, null);
+	}
+
+	HueLightGroup(HueBridge bridge, Integer id, Map<Integer, HueLightBulb> lights) {
 		if(id==null || id<0) {
 			throw new IllegalArgumentException("id has to be non-negative and non-null");
 		}
@@ -38,6 +37,11 @@ public class HueLightBulb implements HueLight {
 		}
 		this.bridge = bridge;
 		this.id = id;
+		if(lights!=null) {
+			this.lights = lights;
+		} else {
+			this.lights = new TreeMap<>();
+		}
 	}
 
 	@Override
@@ -75,18 +79,44 @@ public class HueLightBulb implements HueLight {
 		this.name = actualName!=null ? actualName : name;
 	}
 
-	public boolean isOn() {
-		return on;
+	public Collection<HueLightBulb> getLights() {
+		return lights.values();
+	}
+
+	public HueLightBulb getLight(int id) {
+		return lights.get(id);
+	}
+
+	public Set<Integer> getLightIds() {
+		return lights.keySet();
+	}
+
+	public boolean add(HueLightBulb light) {
+		if(light.bridge!=bridge) {
+			throw new IllegalArgumentException("A group can only contain lights from the same bridge");
+		}
+		if(id==0) {
+			return false;
+		}
+		throw new UnsupportedOperationException("This is not supported by version 1.0 of the Philips Hue API");
+	}
+
+	public boolean remove(HueLightBulb light) {
+		if(light.bridge!=bridge) {
+			throw new IllegalArgumentException("A group may only contain lights from the same bridge");
+		}
+		if(id==0) {
+			throw new IllegalArgumentException("It is not allowed to remove a light from the implicit group");
+		}
+		throw new UnsupportedOperationException("This is not supported by version 1.0 of the Philips Hue API");
 	}
 
 	@Override
 	public void setOn(boolean on) {
 		stateChange("on", on);
-		this.on = on;
-	}
-
-	public int getBrightness() {
-		return brightness;
+		for(HueLightBulb light : getLights()) {
+			light.on = on;
+		}
 	}
 
 	@Override
@@ -95,11 +125,9 @@ public class HueLightBulb implements HueLight {
 			throw new IllegalArgumentException("Brightness must be between 0-255");
 		}
 		stateChange("bri", brightness);
-		this.brightness = brightness;
-	}
-
-	public int getHue() {
-		return hue;
+		for(HueLightBulb light : getLights()) {
+			light.brightness = brightness;
+		}
 	}
 
 	@Override
@@ -108,12 +136,9 @@ public class HueLightBulb implements HueLight {
 			throw new IllegalArgumentException("Hue must be between 0-65535");
 		}
 		stateChange("hue", hue);
-		this.hue = hue;
-		colorMode = ColorMode.HS;
-	}
-
-	public int getSaturation() {
-		return saturation;
+		for(HueLightBulb light : getLights()) {
+			light.hue = hue;
+		}
 	}
 
 	@Override
@@ -122,26 +147,9 @@ public class HueLightBulb implements HueLight {
 			throw new IllegalArgumentException("Saturation must be between 0-255");
 		}
 		stateChange("sat", saturation);
-		this.saturation = saturation;
-		colorMode = ColorMode.HS;
-	}
-
-	public double getCiex() {
-		return ciex;
-	}
-
-	public void setCiex(double ciex) {
-		setCieXY(ciex, ciey);
-		this.ciex = ciex;
-	}
-
-	public double getCiey() {
-		return ciey;
-	}
-
-	public void setCiey(double ciey) {
-		setCieXY(ciex, ciey);
-		this.ciey = ciey;
+		for(HueLightBulb light : getLights()) {
+			light.saturation = saturation;
+		}
 	}
 
 	@Override
@@ -150,13 +158,10 @@ public class HueLightBulb implements HueLight {
 			throw new IllegalArgumentException("A cie coordinate must be between 0.0-1.0");
 		}
 		stateChange("xy", new JSONArray(Arrays.asList((float)ciex,(float)ciey)));
-		this.ciex = ciex;
-		this.ciey = ciey;
-		colorMode = ColorMode.XY;
-	}
-
-	public int getColorTemperature() {
-		return colorTemperature;
+		for(HueLightBulb light : getLights()) {
+			light.ciex = ciex;
+			light.ciey = ciey;
+		}
 	}
 
 	@Override
@@ -165,18 +170,17 @@ public class HueLightBulb implements HueLight {
 			throw new IllegalArgumentException("ColorTemperature must be between 153-500");
 		}
 		stateChange("ct", colorTemperature);
-		this.colorTemperature = colorTemperature;
-		colorMode = ColorMode.CT;
-	}
-
-	public Effect getEffect() {
-		return effect;
+		for(HueLightBulb light : getLights()) {
+			light.colorTemperature = colorTemperature;
+		}
 	}
 
 	@Override
 	public void setEffect(Effect effect) {
 		stateChange("effect", effect.name);
-		this.effect = effect;
+		for(HueLightBulb light : getLights()) {
+			light.effect = effect;
+		}
 	}
 
 	@Override
@@ -184,20 +188,18 @@ public class HueLightBulb implements HueLight {
 		stateChange("alert", alert.name);
 	}
 
-	public ColorMode getColorMode() {
-		return colorMode;
-	}
-
 	@Override
 	public String toString() {
+		String ids = "";
+		for(Integer lightId : getLightIds()) {
+			if(ids.length()>0) {
+				ids += ",";
+			}
+			ids += lightId;
+		}
+
 		return getId() +"(" +getName() +")" +"["
-			   +(isOn() ? "ON" : "OFF") +","
-			   +(getColorMode()==ColorMode.CT ? "CT:"+getColorTemperature() : "")
-			   +(getColorMode()==ColorMode.HS ? "HS:"+getHue() +"/" +getSaturation() : "")
-			   +(getColorMode()==ColorMode.XY ? "XY:"+getCiex() +"/" +getCiey() : "")
-			   + ","
-			   +"BRI:" +getBrightness()
-			   +(getEffect()!=Effect.NONE ? getEffect() : "")
+			   +ids
 			   +"]";
 	}
 
@@ -239,7 +241,7 @@ public class HueLightBulb implements HueLight {
 			if(transitionTime!=null) {
 				json = json.key("transitiontime").value(transitionTime);
 			}
-			return bridge.checkedSuccessRequest(PUT, "/lights/" + getId() + "/state", json.key(param).value(value));
+			return bridge.checkedSuccessRequest(PUT, "/groups/" + getId() + "/action", json.key(param).value(value));
 		} else {
 			stateTransaction.put(param, value);
 			return null;

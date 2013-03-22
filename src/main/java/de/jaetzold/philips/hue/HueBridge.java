@@ -1,5 +1,6 @@
 package de.jaetzold.philips.hue;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONStringer;
 import org.json.JSONWriter;
@@ -19,7 +20,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static de.jaetzold.philips.hue.HueBridgeComm.RM.*;
-import static de.jaetzold.philips.hue.HueLightBulb.ColorMode.*;
+import static de.jaetzold.philips.hue.HueLight.ColorMode.*;
 
 /**
  *
@@ -32,12 +33,12 @@ public class HueBridge {
 	 * If {@link #discover()} does not return what is expected this field might help track down the cause.
 	 * But this should be rare and probably means there is a bug in generating or parsing the discovery responses somewhere.
 	 * It is unusual not to throw an exception but instead remember it in a variable, but it would otherwise not be possible to
-	 * be able to discover hubs if e.g. some completely unrelated UPnP device causes an exception with its response.
+	 * be able to discover bridges if e.g. some completely unrelated UPnP device causes an exception with its response.
 	 */
 	public static Exception lastDiscoveryException;
 	/**
-	 * If {@link #discover()} should return quicker if there are no hubs found, set this to a lower value.
-	 * Might not find existing hubs then if the network is very slow. 1-4 is acceptable.
+	 * If {@link #discover()} should return quicker if there are no bridges found, set this to a lower value.
+	 * Might not find existing bridges then if the network is very slow. 1-4 is acceptable.
 	 */
 	public static int discoveryAttempts = 3;
 
@@ -55,10 +56,11 @@ public class HueBridge {
 	String deviceType = getClass().getName();
 
 	String name;
-	Map<Integer, HueLightBulb> lights = new TreeMap<>();
+	final Map<Integer, HueLightBulb> lights = new TreeMap<>();
+	final Map<Integer, HueLightGroup> groups = new TreeMap<>();
 
 	/**
-	 * Get a HueHub for a known IP Address without using {@link #discover()}.
+	 * Get a HueBridge for a known IP Address without using {@link #discover()}.
 	 *
 	 * @param address The IP Adress of the Philips Hue Bridge
 	 * @param username A username to authenticate with. May be null (in which case one will be generated on successful authentication)
@@ -70,6 +72,10 @@ public class HueBridge {
 	HueBridge(URL baseUrl, String username) {
 		this.username = username;
 		this.comm = new HueBridgeComm(baseUrl);
+		// this group is implicit and always contains all lights of this bridge
+		final HueLightGroup group = new HueLightGroup(this, 0, lights);
+		group.name = "Implicit";
+		groups.put(0, group);
 	}
 
 	public URL getBaseUrl() {
@@ -126,6 +132,21 @@ public class HueBridge {
 	public Set<Integer> getLightIds() {
 		checkAuthAndSync();
 		return lights.keySet();
+	}
+
+	public Collection<HueLightGroup> getGroups() {
+		checkAuthAndSync();
+		return groups.values();
+	}
+
+	public HueLightGroup getGroup(int id) {
+		checkAuthAndSync();
+		return groups.get(id);
+	}
+
+	public Set<Integer> getGroupIds() {
+		checkAuthAndSync();
+		return groups.keySet();
 	}
 
 	public boolean authenticate(String usernameToTry, boolean waitForGrant) {
@@ -198,7 +219,7 @@ public class HueBridge {
 
 	@Override
 	public String toString() {
-		return (initialSyncDone ? getName()+"@" : "<Unsynced Hue Hub>@")+getBaseUrl()+"#"+getUDN();
+		return (initialSyncDone ? getName()+"@" : "<Unsynced Hue Bridge>@")+getBaseUrl()+"#"+getUDN();
 	}
 
 	private void completeSync(String username) {
@@ -209,13 +230,14 @@ public class HueBridge {
 				if(datastore.has("error")) {
 					throw new HueCommException(datastore.getJSONObject("error"));
 				}
-				if(datastore.has("config") && datastore.has("lights")) {
+				if(datastore.has("config") && datastore.has("lights") && datastore.has("groups")) {
 					parseConfig(datastore.getJSONObject("config"));
 					parseLights(datastore.getJSONObject("lights"));
+					parseGroups(datastore.getJSONObject("groups"));
 					this.setUsername(username);
 					initialSyncDone = true;
 				} else {
-					throw new HueCommException("Incomplete response. Missing config and/or lights");
+					throw new HueCommException("Incomplete response. Missing at least one of config/lights/groups");
 				}
 			} else {
 				throw new HueCommException("Empty response");
@@ -253,14 +275,56 @@ public class HueBridge {
 				light.ciey = state.getJSONArray("xy").getDouble(1);
 				light.colorTemperature = state.getInt("ct");
 				light.colorMode = new HueLightBulb.ColorMode[]{HS,XY,CT}[Arrays.asList("hs","xy","ct").indexOf(state.getString("colormode").toLowerCase())];
-				final HueLightBulb.Effect effect = HueLightBulb.Effect.fromName(state.getString("effect"));
+				final HueLightBulb.Effect effect = HueLight.Effect.fromName(state.getString("effect"));
 				if(effect==null) {
-					log.warning("Can not find effect named \"" +state.getString("effect") +"\"");
+					//noinspection ThrowCaughtLocally
+					throw new HueCommException("Can not find effect named \"" +state.getString("effect") +"\"");
 				}
 				light.effect = effect;
 
 			} catch(Exception e) {
-				throw new HueCommException("Lights result parsing failed. Probably some unexpected format?", e);
+				if(e instanceof HueCommException) {
+					throw e;
+				} else {
+					throw new HueCommException("Lights result parsing failed. Probably some unexpected format?", e);
+				}
+			}
+		}
+	}
+
+	private void parseGroups(JSONObject groupsJson) {
+		final Iterator<?> keys = groupsJson.keys();
+		while(keys.hasNext()) {
+			Object key = keys.next();
+			try {
+				Integer id = Integer.parseInt((String)key);
+				HueLightGroup group = groups.get(id);
+				if(group==null) {
+					group = new HueLightGroup(this, id);
+					groups.put(id, group);
+				}
+
+				final JSONObject lightJson = groupsJson.getJSONObject((String)key);
+				group.name = lightJson.getString("name");
+
+				final JSONArray lightsArray = lightJson.getJSONArray("lights");
+				for(int i=0; i<lightsArray.length(); i++) {
+					Integer lightId = Integer.parseInt(lightsArray.getString(i));
+					final HueLightBulb light = getLight(lightId);
+					if(light==null) {
+						//noinspection ThrowCaughtLocally
+						throw new HueCommException("Can not find light with id " +lightId);
+					} else {
+						group.lights.put(lightId, light);
+					}
+				}
+
+			} catch(Exception e) {
+				if(e instanceof HueCommException) {
+					throw e;
+				} else {
+					throw new HueCommException("Groups result parsing failed. Probably some unexpected format?", e);
+				}
 			}
 		}
 	}
