@@ -29,7 +29,7 @@ public class HueLightGroup implements HueLight {
 
 	Integer transitionTime;
 
-	public HueLightGroup(HueBridge bridge, Integer id) {
+	HueLightGroup(HueBridge bridge, Integer id) {
 		this(bridge, id, null);
 	}
 
@@ -79,12 +79,12 @@ public class HueLightGroup implements HueLight {
 		if(name==null || name.trim().length()>32) {
 			throw new IllegalArgumentException("Name (without leading or trailing whitespace) has to be less than 32 characters long");
 		}
-		final JSONObject response = bridge.checkedSuccessRequest(PUT, "/lights/" +id, JO().key("name").value(name)).get(0);
+		final JSONObject response = bridge.checkedSuccessRequest(PUT, "/lights/" +id, JO().key("name").value(name.trim())).get(0);
 		final String actualName = response.getJSONObject("success").optString("/lights/" + id + "/name");
 		this.name = actualName!=null ? actualName : name;
 	}
 
-	public Collection<HueLightBulb> getLights() {
+	public Collection<? extends HueLightBulb> getLights() {
 		return lights.values();
 	}
 
@@ -97,7 +97,7 @@ public class HueLightGroup implements HueLight {
 	}
 
 	public boolean add(HueLightBulb light) {
-		if(light.bridge!=bridge) {
+		if(light.getBridge()!=getBridge()) {
 			throw new IllegalArgumentException("A group can only contain lights from the same bridge");
 		}
 		if(id==0) {
@@ -107,7 +107,7 @@ public class HueLightGroup implements HueLight {
 	}
 
 	public boolean remove(HueLightBulb light) {
-		if(light.bridge!=bridge) {
+		if(light.getBridge()!=getBridge()) {
 			throw new IllegalArgumentException("A group may only contain lights from the same bridge");
 		}
 		if(id==0) {

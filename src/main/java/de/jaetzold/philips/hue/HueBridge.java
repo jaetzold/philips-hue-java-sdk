@@ -11,6 +11,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,7 @@ public class HueBridge {
 	String name;
 	final Map<Integer, HueLightBulb> lights = new TreeMap<>();
 	final Map<Integer, HueLightGroup> groups = new TreeMap<>();
+	final Map<Integer, HueVirtualLightGroup> virtualGroups = new TreeMap<>();
 
 	/**
 	 * Get a HueBridge for a known IP Address without using {@link #discover()}.
@@ -119,7 +121,7 @@ public class HueBridge {
 		this.name = name;
 	}
 
-	public Collection<HueLightBulb> getLights() {
+	public Collection<? extends HueLightBulb> getLights() {
 		checkAuthAndSync();
 		return lights.values();
 	}
@@ -131,10 +133,10 @@ public class HueBridge {
 
 	public Set<Integer> getLightIds() {
 		checkAuthAndSync();
-		return lights.keySet();
+		return Collections.unmodifiableSet(lights.keySet());
 	}
 
-	public Collection<HueLightGroup> getGroups() {
+	public Collection<? extends HueLightGroup> getGroups() {
 		checkAuthAndSync();
 		return groups.values();
 	}
@@ -146,7 +148,19 @@ public class HueBridge {
 
 	public Set<Integer> getGroupIds() {
 		checkAuthAndSync();
-		return groups.keySet();
+		return Collections.unmodifiableSet(groups.keySet());
+	}
+
+	public Collection<HueVirtualLightGroup> getVirtualGroups() {
+		return virtualGroups.values();
+	}
+
+	public HueVirtualLightGroup getVirtualGroup(int id) {
+		return virtualGroups.get(id);
+	}
+
+	public Set<Integer> getVirtualGroupIds() {
+		return virtualGroups.keySet();
 	}
 
 	public boolean authenticate(String usernameToTry, boolean waitForGrant) {

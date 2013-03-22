@@ -75,7 +75,7 @@ public class HueLightBulb implements HueLight {
 		if(name==null || name.trim().length()>32) {
 			throw new IllegalArgumentException("Name (without leading or trailing whitespace) has to be less than 32 characters long");
 		}
-		final JSONObject response = bridge.checkedSuccessRequest(PUT, "/lights/" +id, JO().key("name").value(name)).get(0);
+		final JSONObject response = bridge.checkedSuccessRequest(PUT, "/lights/" +id, JO().key("name").value(name.trim())).get(0);
 		final String actualName = response.getJSONObject("success").optString("/lights/" + id + "/name");
 		this.name = actualName!=null ? actualName : name;
 	}
