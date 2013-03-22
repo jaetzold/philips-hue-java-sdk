@@ -1,12 +1,21 @@
 package de.jaetzold.philips.hue;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONStringer;
+
+import java.util.Arrays;
+import java.util.List;
 
 import static de.jaetzold.philips.hue.HueHubComm.RM.PUT;
 
 /** @author Stephan Jaetzold <p><small>Created at 20.03.13, 14:59</small> */
 public class HueLightBulb {
+	public static final int HUE_RED = 0;
+	public static final int HUE_RED_2 = 65535;
+	public static final int HUE_GREEN = 25500;
+	public static final int HUE_BLUE = 46920;
+
 	final Integer id;
 	final HueHub hub;
 
@@ -63,7 +72,7 @@ public class HueLightBulb {
 	}
 
 	public void setOn(boolean on) {
-		hub.checkedSuccessRequest(PUT, "/lights/" +id +"/state", JO().key("on").value(on)).get(0);
+		stateChange("on", on);
 		this.on = on;
 	}
 
@@ -72,6 +81,10 @@ public class HueLightBulb {
 	}
 
 	public void setBrightness(int brightness) {
+		if(brightness<0 || brightness>255) {
+			throw new IllegalArgumentException("Brightness must be between 0-255");
+		}
+		stateChange("bri", brightness);
 		this.brightness = brightness;
 	}
 
@@ -80,6 +93,10 @@ public class HueLightBulb {
 	}
 
 	public void setHue(int hue) {
+		if(hue<0 || hue>65535) {
+			throw new IllegalArgumentException("Hue must be between 0-65535");
+		}
+		stateChange("hue", hue);
 		this.hue = hue;
 	}
 
@@ -88,6 +105,10 @@ public class HueLightBulb {
 	}
 
 	public void setSaturation(int saturation) {
+		if(saturation<0 || saturation>255) {
+			throw new IllegalArgumentException("Saturation must be between 0-255");
+		}
+		stateChange("sat", saturation);
 		this.saturation = saturation;
 	}
 
@@ -96,6 +117,7 @@ public class HueLightBulb {
 	}
 
 	public void setCiex(double ciex) {
+		setCieXY(ciex, ciey);
 		this.ciex = ciex;
 	}
 
@@ -104,6 +126,16 @@ public class HueLightBulb {
 	}
 
 	public void setCiey(double ciey) {
+		setCieXY(ciex, ciey);
+		this.ciey = ciey;
+	}
+
+	public void setCieXY(double ciex, double ciey) {
+		if(ciex<0 || ciex>1 || ciey<0 || ciey>1) {
+			throw new IllegalArgumentException("A cie coordinate must be between 0.0-1.0");
+		}
+		stateChange("xy", new JSONArray(Arrays.asList((float)ciex,(float)ciey)));
+		this.ciex = ciex;
 		this.ciey = ciey;
 	}
 
@@ -112,6 +144,10 @@ public class HueLightBulb {
 	}
 
 	public void setColorTemperature(int colorTemperature) {
+		if(colorTemperature<153 || colorTemperature>500) {
+			throw new IllegalArgumentException("ColorTemperature must be between 153-500");
+		}
+		stateChange("ct", colorTemperature);
 		this.colorTemperature = colorTemperature;
 	}
 
@@ -121,12 +157,16 @@ public class HueLightBulb {
 
 	@Override
 	public String toString() {
-		return id +"(" +name +")" +"["
-			   +(on ? "ON" : "OFF") +","
-			   +(colorMode==ColorMode.CT ? "CT:"+colorTemperature : "")
-			   +(colorMode==ColorMode.HS ? "HS:"+hue +"/" +saturation : "")
-			   +(colorMode==ColorMode.XY ? "XY:"+ciex +"/" +ciey : "")
+		return getId() +"(" +getName() +")" +"["
+			   +(isOn() ? "ON" : "OFF") +","
+			   +(getColorMode()==ColorMode.CT ? "CT:"+getColorTemperature() : "")
+			   +(getColorMode()==ColorMode.HS ? "HS:"+getHue() +"/" +getSaturation() : "")
+			   +(getColorMode()==ColorMode.XY ? "XY:"+getCiex() +"/" +getCiey() : "")
 			   +"]";
+	}
+
+	private List<JSONObject> stateChange(String param, Object value) {
+		return hub.checkedSuccessRequest(PUT, "/lights/" + getId() + "/state", JO().key(param).value(value));
 	}
 
 	/**

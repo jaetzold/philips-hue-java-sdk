@@ -18,6 +18,9 @@ import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import static de.jaetzold.philips.hue.HueHubComm.RM.*;
+import static de.jaetzold.philips.hue.HueLightBulb.ColorMode.*;
+
 /**
  *
  * @author Stephan Jaetzold <p><small>Created at 20.03.13, 15:10</small>
