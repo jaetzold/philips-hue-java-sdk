@@ -48,7 +48,10 @@ class HueHubComm {
 			HttpURLConnection httpConnection = (HttpURLConnection)connection;
 			httpConnection.setRequestMethod(method.name());
 			if(json!=null && json.length()>0) {
-				httpConnection.setDoOutput(method==RM.POST);
+				if(method==RM.GET || method==RM.DELETE) {
+					throw new HueCommException("Will not send json content for request method " +method);
+				}
+				httpConnection.setDoOutput(true);
 				httpConnection.getOutputStream().write(json.getBytes(REQUEST_CHARSET));
 			}
 		} else {

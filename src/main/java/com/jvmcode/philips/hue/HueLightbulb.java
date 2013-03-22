@@ -1,5 +1,12 @@
 package com.jvmcode.philips.hue;
 
+import org.json.JSONObject;
+import org.json.JSONStringer;
+
+import java.util.List;
+
+import static com.jvmcode.philips.hue.HueHubComm.RM.PUT;
+
 /** @author Stephan Jaetzold <p><small>Created at 20.03.13, 14:59</small> */
 public class HueLightBulb {
 	final Integer id;
@@ -25,6 +32,9 @@ public class HueLightBulb {
 		if(id==null || id<0) {
 			throw new IllegalArgumentException("id has to be non-negative and non-null");
 		}
+		if(hub==null) {
+			throw new IllegalArgumentException("hub may not be null");
+		}
 		this.hub = hub;
 		this.id = id;
 	}
@@ -42,7 +52,12 @@ public class HueLightBulb {
 	}
 
 	public void setName(String name) {
-		this.name = name;
+		if(name==null || name.trim().length()>32) {
+			throw new IllegalArgumentException("Name (without leading or trailing whitespace) has to be less than 32 characters long");
+		}
+		final JSONObject response = hub.checkedSuccessRequest(PUT, "/lights/" +id, JO().key("name").value(name)).get(0);
+		final String actualName = response.getJSONObject("success").optString("/lights/" + id + "/name");
+		this.name = actualName!=null ? actualName : name;
 	}
 
 	public boolean isOn() {
@@ -50,6 +65,7 @@ public class HueLightBulb {
 	}
 
 	public void setOn(boolean on) {
+		hub.checkedSuccessRequest(PUT, "/lights/" +id +"/state", JO().key("on").value(on)).get(0);
 		this.on = on;
 	}
 
@@ -113,5 +129,23 @@ public class HueLightBulb {
 			   +(colorMode==ColorMode.HS ? "HS:"+hue +"/" +saturation : "")
 			   +(colorMode==ColorMode.XY ? "XY:"+ciex +"/" +ciey : "")
 			   +"]";
+	}
+
+	/**
+	 * Helper method to shorten creation of a JSONObject String.
+	 * @return A JSONStringer with an object already 'open' and auto-object-end on a call to toString()
+	 */
+	private static JSONStringer JO() {
+		return new JSONStringer() {
+			boolean endObjectDone = false;
+			{ object(); }
+			@Override
+			public String toString() {
+				if(!endObjectDone) {
+					endObject();
+				}
+				return super.toString();
+			}
+		};
 	}
 }

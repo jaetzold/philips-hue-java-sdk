@@ -16,10 +16,28 @@ if(hubs.isEmpty()) {
 }
 HueHub hub = hubs.get(0)
 
-queryForLights(hub)
+listLights(hub)
+
+hub.setName("Jaetzold's Hue")
+println("After changing name: " +hub)
+
+if(hubs.lights.isEmpty()) {
+    println("No lights found.")
+    System.exit(2)
+}
+HueLightBulb light = hub.getLight(hub.lightIds[0])
+
+blinkOnce(light)
 
 
-def queryForLights(HueHub hub) {
+def blinkOnce(HueLightBulb light) {
+    println("Blink " +light.name)
+    light.on = !light.on;
+    Thread.sleep(1000);
+    light.on = !light.on;
+}
+
+def listLights(HueHub hub) {
     Collection<HueLightBulb> lights = hub.lights
     println(hub.name + " controls " + lights.size() + " lights:")
     for(HueLightBulb light : lights) {
@@ -30,7 +48,7 @@ def queryForLights(HueHub hub) {
 def discoverAndAuthenticate() {
     List<HueHub> hubs = HueHub.discover()
     for(HueHub hub : hubs) {
-        println("Found hub at " + hub.baseUrl)
+        println("Found " + hub)
         String u1 = 'IchBinHierUndWillWasVonDir'
         String u2 = '8aefa072a354a7f113f6bf72b173e6f'
         hub.username = u1;

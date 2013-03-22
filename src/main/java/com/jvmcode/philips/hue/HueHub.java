@@ -13,6 +13,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -56,17 +57,27 @@ public class HueHub {
 	String name;
 	Map<Integer, HueLightBulb> lights = new TreeMap<>();
 
+	/**
+	 * Get a HueHub for a known IP Address without using {@link #discover()}.
+	 *
+	 * @param address The IP Adress of the Philips Hue Bridge
+	 * @param username A username to authenticate with. May be null (in which case one will be generated on successful authentication)
+	 */
 	public HueHub(InetAddress address, String username) {
 		this(constructBaseUrlFor(address), username);
 	}
 
-	public HueHub(URL baseUrl, String username) {
+	HueHub(URL baseUrl, String username) {
 		this.username = username;
 		this.comm = new HueHubComm(baseUrl);
 	}
 
 	public URL getBaseUrl() {
 		return comm.baseUrl;
+	}
+
+	public String getUDN() {
+		return UDN;
 	}
 
 	public String getUsername() {
@@ -90,11 +101,31 @@ public class HueHub {
 	}
 
 	public String getName() {
+		checkAuthAndSync();
 		return name;
 	}
 
+	public void setName(String name) {
+		if(name==null || name.trim().length()<4 || name.trim().length()>16) {
+			throw new IllegalArgumentException("Name (without leading or trailing whitespace) has to be 4-16 characters long");
+		}
+		checkedSuccessRequest(PUT, "/config", JO().key("name").value(name));
+		this.name = name;
+	}
+
 	public Collection<HueLightBulb> getLights() {
+		checkAuthAndSync();
 		return lights.values();
+	}
+
+	public HueLightBulb getLight(int id) {
+		checkAuthAndSync();
+		return lights.get(id);
+	}
+
+	public Set<Integer> getLightIds() {
+		checkAuthAndSync();
+		return lights.keySet();
 	}
 
 	public boolean authenticate(String usernameToTry, boolean waitForGrant) {
@@ -107,8 +138,10 @@ public class HueHub {
 			// I just don't get why a "create new user" request for an existing user results in the same 101 error as when the user does not exist.
 			// But for this reason this additional preliminary request is necessary.
 			if(!equalEnough(null, usernameToTry)) {
-				if(completeSync(usernameToTry)) {
+				try {
+					completeSync(usernameToTry);
 					authenticated = true;
+				} catch(HueCommException e) {
 				}
 			}
 
@@ -163,23 +196,33 @@ public class HueHub {
 		return isAuthenticated();
 	}
 
-	private boolean completeSync(String authToken) {
+	@Override
+	public String toString() {
+		return (initialSyncDone ? getName()+"@" : "<Unsynced Hue Hub>@")+getBaseUrl()+"#"+getUDN();
+	}
+
+	private void completeSync(String username) {
 		try {
-			final List<JSONObject> response = comm.request(GET, "api/" + authToken.trim(), "");
+			final List<JSONObject> response = comm.request(GET, "api/" + username.trim(), "");
 			if(response.size()>0) {
 				final JSONObject datastore = response.get(0);
+				if(datastore.has("error")) {
+					throw new HueCommException(datastore.getJSONObject("error"));
+				}
 				if(datastore.has("config") && datastore.has("lights")) {
 					parseConfig(datastore.getJSONObject("config"));
 					parseLights(datastore.getJSONObject("lights"));
-					this.setUsername(authToken);
+					this.setUsername(username);
 					initialSyncDone = true;
-					return true;
+				} else {
+					throw new HueCommException("Incomplete response. Missing config and/or lights");
 				}
+			} else {
+				throw new HueCommException("Empty response");
 			}
 		} catch(IOException e) {
-			log.log(Level.WARNING, "IOException on get full state request", e);
+			throw new HueCommException(e);
 		}
-		return false;
 	}
 
 	private void parseConfig(JSONObject config) {
@@ -212,24 +255,53 @@ public class HueHub {
 				light.colorMode = new HueLightBulb.ColorMode[]{HS,XY,CT}[Arrays.asList("hs","xy","ct").indexOf(state.getString("colormode").toLowerCase())];
 
 			} catch(Exception e) {
-				log.log(Level.WARNING, "Exception on parsing lights result for key " +key, e);
-				throw new IllegalArgumentException("Lights result parsing failed. Probably some unexpected format?", e);
+				throw new HueCommException("Lights result parsing failed. Probably some unexpected format?", e);
 			}
 		}
 	}
 
-	List<JSONObject> request(HueHubComm.RM method, String userPath, JSONObject json) throws IOException {
-		if(!isAuthenticated()) {
-			throw new IllegalStateException("User based requests need authentication first.");
+	List<JSONObject> checkedSuccessRequest(HueHubComm.RM method, String userPath, JSONWriter json) {
+		final List<JSONObject> response = request(method, userPath, json);
+		if(!response.get(0).has("success")) {
+			throw new HueCommException(response.get(0).getJSONObject("error"));
 		}
-		return comm.request(method, "api/" + username.trim() +userPath, json);
+		return response;
 	}
 
-	List<JSONObject> request(HueHubComm.RM method, String userPath, String json) throws IOException {
-		if(!isAuthenticated()) {
-			throw new IllegalStateException("User based requests need authentication first.");
+	List<JSONObject> request(HueHubComm.RM method, String userPath, JSONWriter json) {
+		checkAuthAndSync();
+		try {
+			return comm.request(method, "api/" + username.trim() +userPath, json.toString());
+		} catch(IOException e) {
+			throw new HueCommException(e);
 		}
-		return comm.request(method, "api/" + username.trim() +userPath, json);
+	}
+
+	void checkAuthAndSync() {
+		if(!isAuthenticated()) {
+			throw new IllegalStateException("Need to authenticate first.");
+		}
+		if(!initialSyncDone) {
+			completeSync(username);
+		}
+	}
+
+	/**
+	 * Helper method to shorten creation of a JSONObject String.
+	 * @return A JSONStringer with an object already 'open' and auto-object-end on a call to toString()
+	 */
+	private static JSONStringer JO() {
+		return new JSONStringer() {
+			boolean endObjectDone = false;
+			{ object(); }
+			@Override
+			public String toString() {
+				if(!endObjectDone) {
+					endObject();
+				}
+				return super.toString();
+			}
+		};
 	}
 
 	private static boolean equalEnough(String a, String b) {
