@@ -14,7 +14,12 @@ import java.util.TreeMap;
 
 import static de.jaetzold.philips.hue.HueBridgeComm.RM.PUT;
 
-/** @author Stephan Jaetzold <p><small>Created at 22.03.13, 14:10</small> */
+/**
+ *
+ * Note: Group creation and deletion is not supported as of Philips Hue API version 1.0.
+ * So effectively only the implicit group 0 containing all the lights can be used.
+ *
+ * @author Stephan Jaetzold <p><small>Created at 22.03.13, 14:10</small> */
 public class HueLightGroup implements HueLight {
 	final Integer id;
 	final HueBridge bridge;

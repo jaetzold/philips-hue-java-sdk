@@ -5,12 +5,12 @@ import de.jaetzold.philips.hue.HueLightGroup
 
 /**
  Still to to:
- * group as a variant of light (has the same properties and capabilities after all)
- * Will not create new groups on bridge until delete is possible (Groups are limited to 16 and i don't want to be responsible for this being full)
- * ? SDK-Internal group implementation that actually syncs state of lights without a group on the bridge
 
  * Transactions need to remember the original state because this needs to be reset when it is not commited/the commit fails
  * Or instead just sync the state from the bridge in this case
+ * Responses on State-Changes can contain multiple success/error entries. One for each state parameter.
+
+ * ? SDK-Internal group implementation that actually syncs state of lights without a group on the bridge
 
  * auto-update internal state in intervals to sync with external changes. Maybe only on state access after interval.
  * ? Events on (even external) state changes. External will only be enabled when there is a listener to preserve resources.
@@ -66,16 +66,16 @@ effect(light, 10000)
 
 def effect(HueLightBulb light, int waitMillis) {
     println("effect '$light.name'")
-    light.effect = HueLightBulb.Effect.COLORLOOP
+    light.effect = HueLight.Effect.COLORLOOP
     Thread.sleep(waitMillis)
-    light.effect = HueLightBulb.Effect.NONE
+    light.effect = HueLight.Effect.NONE
 }
 
 def alert(HueLightBulb light, int waitMillis) {
     println("alert '$light.name'")
-    light.alert = HueLightBulb.Alert.LSELECT
+    light.alert = HueLight.Alert.LSELECT
     Thread.sleep(waitMillis)
-    light.alert = HueLightBulb.Alert.NONE
+    light.alert = HueLight.Alert.NONE
 }
 
 def multipleStateChangeInOneRequest(HueLightBulb light, int transisitonMillis) {

@@ -10,7 +10,12 @@ import java.util.List;
 
 import static de.jaetzold.philips.hue.HueBridgeComm.RM.PUT;
 
-/** @author Stephan Jaetzold <p><small>Created at 20.03.13, 14:59</small> */
+/**
+ *
+ * As a general note: A state value here is always only a cached version that may already be incorrect.
+ * Even if no one else is controlling the lights. I've observed that e.g. the brightness value changes if a light is just switched on.
+ *
+ * @author Stephan Jaetzold <p><small>Created at 20.03.13, 14:59</small> */
 public class HueLightBulb implements HueLight {
 	final Integer id;
 	final HueBridge bridge;
