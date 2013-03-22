@@ -178,12 +178,51 @@ public class HueLightBulb {
 			   +"]";
 	}
 
-	private List<JSONObject> stateChange(String param, Object value) {
-		JSONWriter json = JO();
-		if(transitionTime!=null) {
-			json = json.key("transitiontime").value(transitionTime);
+	// Beware: This only changes the state of _this_ light in bulk. Any other light changed by the runnable is change directly
+	// If more lights should be changed in one transaction it is possible by nesting runnables that call stateChangeTransaction on other lights.
+	// transactions on the same light can not be nested. This will result in an exception.
+	public void stateChangeTransaction(Integer transitionTime, Runnable changes) {
+		openStateChangeTransaction(transitionTime);
+		try {
+			changes.run();
+		} catch(Throwable t) {
+			stateTransactionJson.set(null);
+			throw t;
+		} finally {
+			commitStateChangeTransaction();
 		}
-		return hub.checkedSuccessRequest(PUT, "/lights/" + getId() + "/state", json.key(param).value(value));
+	}
+
+	private ThreadLocal<JSONObject> stateTransactionJson = new ThreadLocal<>();
+	private void openStateChangeTransaction(Integer transitionTime) {
+		if(stateTransactionJson.get()==null) {
+			stateTransactionJson.set(new JSONObject());
+			if(transitionTime!=null) {
+				stateTransactionJson.get().put("transitiontime", transitionTime);
+			}
+		} else {
+			throw new IllegalStateException("Have an open state change transaction already");
+		}
+	}
+
+	private List<JSONObject> commitStateChangeTransaction() {
+		final JSONObject json = stateTransactionJson.get();
+		stateTransactionJson.set(null);
+		return hub.checkedSuccessRequest(PUT, "/lights/" + getId() + "/state", json);
+	}
+
+	private List<JSONObject> stateChange(String param, Object value) {
+		final JSONObject stateTransaction = stateTransactionJson.get();
+		if(stateTransaction==null) {
+			JSONWriter json = JO();
+			if(transitionTime!=null) {
+				json = json.key("transitiontime").value(transitionTime);
+			}
+			return hub.checkedSuccessRequest(PUT, "/lights/" + getId() + "/state", json.key(param).value(value));
+		} else {
+			stateTransaction.put(param, value);
+			return null;
+		}
 	}
 
 	/**
@@ -192,14 +231,10 @@ public class HueLightBulb {
 	 */
 	private static JSONStringer JO() {
 		return new JSONStringer() {
-			boolean endObjectDone = false;
 			{ object(); }
 			@Override
 			public String toString() {
-				if(!endObjectDone) {
-					endObject();
-				}
-				return super.toString();
+				return writer.toString()+(mode!='d' ? "}" :"");
 			}
 		};
 	}

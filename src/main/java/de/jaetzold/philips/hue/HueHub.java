@@ -260,7 +260,7 @@ public class HueHub {
 		}
 	}
 
-	List<JSONObject> checkedSuccessRequest(HueHubComm.RM method, String userPath, JSONWriter json) {
+	List<JSONObject> checkedSuccessRequest(HueHubComm.RM method, String userPath, Object json) {
 		final List<JSONObject> response = request(method, userPath, json);
 		if(!response.get(0).has("success")) {
 			throw new HueCommException(response.get(0).getJSONObject("error"));
@@ -268,7 +268,7 @@ public class HueHub {
 		return response;
 	}
 
-	List<JSONObject> request(HueHubComm.RM method, String userPath, JSONWriter json) {
+	List<JSONObject> request(HueHubComm.RM method, String userPath, Object json) {
 		checkAuthAndSync();
 		try {
 			return comm.request(method, "api/" + username.trim() +userPath, json.toString());
@@ -292,14 +292,10 @@ public class HueHub {
 	 */
 	private static JSONStringer JO() {
 		return new JSONStringer() {
-			boolean endObjectDone = false;
 			{ object(); }
 			@Override
 			public String toString() {
-				if(!endObjectDone) {
-					endObject();
-				}
-				return super.toString();
+				return writer.toString()+(mode!='d' ? "}" :"");
 			}
 		};
 	}

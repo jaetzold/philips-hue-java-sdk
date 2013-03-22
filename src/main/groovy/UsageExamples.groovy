@@ -3,10 +3,9 @@ import de.jaetzold.philips.hue.HueLightBulb
 
 /**
  Still to to:
- * light transitiontime
  * light alert
  * light effect
- * light bulk state change
+ * ? groovy closure mixin for the state change transaction?
 
  * group as a variant of light (has the same properties and capabilities after all)
  * Will not create new groups on hub until delete is possible (Groups are limited to 16 and i don't want to be responsible for this being full)
@@ -49,10 +48,33 @@ HueLightBulb light = hub.getLight(hub.lightIds[0])
 
 light.on = true;
 blinkOnce(light, 1000)
-sweepBrightness(light, 1000)
-sweepHueSaturation(light, 1000)
-sweepCieXY(light, 1000)
-sweepColorTemperature(light, 1000)
+//sweepBrightness(light, 1000)
+//sweepHueSaturation(light, 1000)
+//sweepCieXY(light, 1000)
+//sweepColorTemperature(light, 1000)
+
+multipleStateChangeInOneRequest(light, 4000)
+
+def multipleStateChangeInOneRequest(HueLightBulb light, int transisitonMillis) {
+    println("multipleStateChangeInOneRequest '$light.name'")
+    light.stateChangeTransaction(0, new Runnable() {
+        @Override
+        void run() {
+            light.hue = HueLightBulb.HUE_RED
+            light.saturation = 0
+            light.brightness = 100
+        }
+    })
+    light.stateChangeTransaction((int)Math.round(transisitonMillis/100.0), new Runnable() {
+        @Override
+        void run() {
+            light.hue = HueLightBulb.HUE_GREEN  // Will be ignored because overwritten later in the transaction
+            light.saturation = 255
+            light.brightness = 255
+            light.hue = HueLightBulb.HUE_BLUE
+        }
+    })
+}
 
 def sweepColorTemperature(HueLightBulb light, int waitMillis) {
     print("sweepColorTemperature '$light.name': ")
@@ -124,7 +146,7 @@ def sweepHueSaturation(HueLightBulb light, int waitMillis) {
     print("-not saturated ")
     Thread.sleep(waitMillis)
     light.hue = HueLightBulb.HUE_GREEN
-    print("GREEN not saturated ")
+    print("GREEN not saturated")
     Thread.sleep(waitMillis)
     light.saturation = 127
     Thread.sleep(waitMillis)
@@ -140,7 +162,7 @@ def sweepHueSaturation(HueLightBulb light, int waitMillis) {
     print("-not saturated ")
     Thread.sleep(waitMillis)
     light.hue = HueLightBulb.HUE_RED_2
-    print("RED_2 not saturated ")
+    print("RED_2 not saturated")
     Thread.sleep(waitMillis)
     light.saturation = 127
     Thread.sleep(waitMillis)
