@@ -253,6 +253,11 @@ public class HueHub {
 				light.ciey = state.getJSONArray("xy").getDouble(1);
 				light.colorTemperature = state.getInt("ct");
 				light.colorMode = new HueLightBulb.ColorMode[]{HS,XY,CT}[Arrays.asList("hs","xy","ct").indexOf(state.getString("colormode").toLowerCase())];
+				final HueLightBulb.Effect effect = HueLightBulb.Effect.fromName(state.getString("effect"));
+				if(effect==null) {
+					log.warning("Can not find effect named \"" +state.getString("effect") +"\"");
+				}
+				light.effect = effect;
 
 			} catch(Exception e) {
 				throw new HueCommException("Lights result parsing failed. Probably some unexpected format?", e);

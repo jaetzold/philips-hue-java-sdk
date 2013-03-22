@@ -45,6 +45,7 @@ if(hubs.lights.isEmpty()) {
 }
 HueLightBulb light = hub.getLight(hub.lightIds[0])
 
+light.transitionTime = 1    // this is used in all subsequent (non-transactional) state changes. 'null' uses the bridges default
 light.on = true;
 blinkOnce(light, 1000)
 
@@ -54,6 +55,23 @@ sweepCieXY(light, 1000)
 sweepColorTemperature(light, 1000)
 
 multipleStateChangeInOneRequest(light, 4000)
+
+alert(light, 10000)
+effect(light, 10000)
+
+def effect(HueLightBulb light, int waitMillis) {
+    println("effect '$light.name'")
+    light.effect = HueLightBulb.Effect.COLORLOOP
+    Thread.sleep(waitMillis)
+    light.effect = HueLightBulb.Effect.NONE
+}
+
+def alert(HueLightBulb light, int waitMillis) {
+    println("alert '$light.name'")
+    light.alert = HueLightBulb.Alert.LSELECT
+    Thread.sleep(waitMillis)
+    light.alert = HueLightBulb.Alert.NONE
+}
 
 def multipleStateChangeInOneRequest(HueLightBulb light, int transisitonMillis) {
     println("multipleStateChangeInOneRequest '$light.name'")

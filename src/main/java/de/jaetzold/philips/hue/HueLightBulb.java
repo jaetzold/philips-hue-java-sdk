@@ -29,11 +29,50 @@ public class HueLightBulb {
 	double ciex;
 	double ciey;
 	int colorTemperature;
+	Effect effect;
+
 	ColorMode colorMode;
 	Integer transitionTime;
 
 	public static enum ColorMode {
 		HS,CT,XY
+	}
+
+	public static enum Alert {
+		NONE("none"), SELECT("select"), LSELECT("select");
+		public final String name;
+
+		private Alert(String name) {
+			this.name = name;
+		}
+
+		@Override
+		public String toString() {
+			return name;
+		}
+	}
+
+	public static enum Effect {
+		NONE("none"), COLORLOOP("colorloop");
+		public final String name;
+
+		private Effect(String name) {
+			this.name = name;
+		}
+
+		public static Effect fromName(String name) {
+			for(Effect effect : Effect.values()) {
+				if(effect.name.equals(name)) {
+					return effect;
+				}
+			}
+			return null;
+		}
+
+		@Override
+		public String toString() {
+			return name;
+		}
 	}
 
 	HueLightBulb(HueHub hub, Integer id) {
@@ -164,6 +203,19 @@ public class HueLightBulb {
 		colorMode = ColorMode.CT;
 	}
 
+	public Effect getEffect() {
+		return effect;
+	}
+
+	public void setEffect(Effect effect) {
+		stateChange("effect", effect.name);
+		this.effect = effect;
+	}
+
+	public void setAlert(Alert alert) {
+		stateChange("alert", alert.name);
+	}
+
 	public ColorMode getColorMode() {
 		return colorMode;
 	}
@@ -175,6 +227,7 @@ public class HueLightBulb {
 			   +(getColorMode()==ColorMode.CT ? "CT:"+getColorTemperature() : "")
 			   +(getColorMode()==ColorMode.HS ? "HS:"+getHue() +"/" +getSaturation() : "")
 			   +(getColorMode()==ColorMode.XY ? "XY:"+getCiex() +"/" +getCiey() : "")
+			   +(getEffect()!=Effect.NONE ? getEffect() : "")
 			   +"]";
 	}
 
