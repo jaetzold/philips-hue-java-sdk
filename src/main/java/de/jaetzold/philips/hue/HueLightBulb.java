@@ -222,8 +222,8 @@ public class HueLightBulb implements HueLight {
 			   +(getColorMode()==ColorMode.HS ? "HS:"+getHue() +"/" +getSaturation() : "")
 			   +(getColorMode()==ColorMode.XY ? "XY:"+getCiex() +"/" +getCiey() : "")
 			   + ","
-			   +"BRI:" +getBrightness() +","
-			   +(getEffect()!=Effect.NONE ? getEffect() : "")
+			   +"BRI:" +getBrightness()
+			   +(getEffect()!=Effect.NONE ? ","+getEffect() : "")
 			   +"]";
 	}
 
@@ -285,34 +285,46 @@ public class HueLightBulb implements HueLight {
 		}
 	}
 
+	private ThreadLocal<Boolean> syncing = new ThreadLocal<>();
 	private void sync() {
-		final JSONObject response = bridge.request(GET, "/lights/" + getId(), "").get(0);
-		if(response.has("error")) {
-			throw new HueCommException(response.getJSONObject("error"));
-		} else {
-			parseLight(response);
+		if(syncing.get() == null || !syncing.get()) {
+			try {
+				syncing.set(true);
+				final JSONObject response = bridge.request(GET, "/lights/" + getId(), "").get(0);
+				if(response.has("error")) {
+					throw new HueCommException(response.getJSONObject("error"));
+				} else {
+					parseLight(response);
+				}
+			} finally {
+				syncing.set(false);
+			}
 		}
 	}
 
 	void parseLight(JSONObject lightJson) {
 		name = lightJson.getString("name");
 
-		final JSONObject state = lightJson.getJSONObject("state");
-		on = state.getBoolean("on");
-		brightness = state.getInt("bri");
-		hue = state.getInt("hue");
-		saturation = state.getInt("sat");
-		ciex = state.getJSONArray("xy").getDouble(0);
-		ciey = state.getJSONArray("xy").getDouble(1);
-		colorTemperature = state.getInt("ct");
-		colorMode = new HueLightBulb.ColorMode[]{HS,XY,CT}[Arrays.asList("hs", "xy", "ct").indexOf(state.getString("colormode").toLowerCase())];
-		final HueLightBulb.Effect effect = HueLight.Effect.fromName(state.getString("effect"));
-		if(effect==null) {
-			throw new HueCommException("Can not find effect named \"" +state.getString("effect") +"\"");
-		}
-		this.effect = effect;
+		if(lightJson.has("state")) {
+			final JSONObject state = lightJson.getJSONObject("state");
+			on = state.getBoolean("on");
+			brightness = state.getInt("bri");
+			hue = state.getInt("hue");
+			saturation = state.getInt("sat");
+			ciex = state.getJSONArray("xy").getDouble(0);
+			ciey = state.getJSONArray("xy").getDouble(1);
+			colorTemperature = state.getInt("ct");
+			colorMode = new ColorMode[]{HS,XY,CT}[Arrays.asList("hs", "xy", "ct").indexOf(state.getString("colormode").toLowerCase())];
+			final Effect effect = Effect.fromName(state.getString("effect"));
+			if(effect==null) {
+				throw new HueCommException("Can not find effect named \"" +state.getString("effect") +"\"");
+			}
+			this.effect = effect;
 
-		lastSyncTime = System.currentTimeMillis();
+			lastSyncTime = System.currentTimeMillis();
+		} else {
+			sync();
+		}
 	}
 
 	/**

@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -228,6 +229,53 @@ public class HueBridge {
 		}
 
 		return isAuthenticated();
+	}
+
+	/**
+	 * Starts a search for new lights.
+	 * See <a href="http://developers.meethue.com/1_lightsapi.html#13_search_for_new_lights">Philips hue API, Section 1.3</a> for further reference.
+	 */
+	public void searchForNewLights() {
+		checkedSuccessRequest(POST, "/lights", "");
+	}
+
+	private boolean scanActive = false;
+	/**
+	 * Returns all lights found at the last search for new lights.
+	 * If the returned list is empty it can mean that no scan has been performed, no new lights have been discovered or a scan is currently active.
+	 * Whether a scan was active at the last call to this method can be queried by calling {@link #isScanActive()}.
+	 *
+	 * See <a href="http://developers.meethue.com/1_lightsapi.html#12_get_new_lights">Philips hue API, Section 1.2</a> for further reference.
+	 */
+	public Collection<? extends HueLightBulb> getNewLights() {
+		final List<JSONObject> response = request(GET, "/lights/new", "");
+		final JSONObject lightsJson = response.get(0);
+		final String lastscan = (String)lightsJson.remove("lastscan");
+		scanActive = lastscan.equals("active");
+		parseLights(lightsJson);
+		final ArrayList<HueLightBulb> result = new ArrayList<>();
+		for(Object key : lightsJson.keySet()) {
+			Integer lightId = null;
+			try {
+				lightId = Integer.parseInt((String)key);
+			} catch(Exception e) {
+			}
+			if(lightId!=null) {
+				final HueLightBulb light = getLight(lightId);
+				if(light==null) {
+					throw new IllegalStateException("For some reason the new light is not available... probable bug?");
+				}
+				result.add(light);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Whether a scan was active at the last call to {@link #getNewLights()}
+	 */
+	public boolean isScanActive() {
+		return scanActive;
 	}
 
 	@Override

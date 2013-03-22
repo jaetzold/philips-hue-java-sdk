@@ -5,14 +5,6 @@ import de.jaetzold.philips.hue.HueLightGroup
 import de.jaetzold.philips.hue.HueVirtualLightGroup
 
 /**
- Still to to:
-
- * discover of new lights. Maybe only on access after interval.
- * auto-update internal state of bridge. Maybe only on access after interval.
-
- * ? Events on (even external) state changes. External will only be enabled when there is a listener to preserve resources.
- * ? Events on lights changes/bridge state changes. External will only be enabled when there is a listener to preserve resources.
-
  Future
  * Group creation/deletion when Bridge API supports that.
  * Schedules support.
@@ -20,6 +12,8 @@ import de.jaetzold.philips.hue.HueVirtualLightGroup
  * Maybe get transactions to be able to completely rollback. Especially with nested transactions involved it is currently possible that
    an inner transaction is already committed if an outer transaction fails. And the bridge may only have success in setting part of the state
    that got committed. Maybe the state before could be remembered an then set back? This is not so easy to ensure...
+ * Fire events for lights on (even external) state changes. External can be enabled and disabled to preserve resources.
+ * Fire events on available lights changes/bridge state changes. External can be enabled and disabled to preserve resources.
 
  * @author Stephan Jaetzold
  * <p><small>Created at 15.03.13, 16:23</small>
@@ -51,34 +45,50 @@ HueLightGroup group = bridge.getGroup(0)
 blinkOnce(group, 1000)      // Groups and LightBulbs share the same interface (containing only the state setters though)
 
 light.transitionTime = 1    // this is used in all subsequent (non-transactional) state changes. 'null' uses the bridges default
-//sweepBrightness(light, 1000)
-//sweepHueSaturation(light, 1000)
-//sweepCieXY(light, 1000)
-//sweepColorTemperature(light, 1000)
-//
-//multipleStateChangeInOneRequest(light, 4000)
-//
-//alert(light, 10000)
-//effect(light, 10000)
+
+sweepBrightness(light, 1000)
+sweepHueSaturation(light, 1000)
+sweepCieXY(light, 1000)
+sweepColorTemperature(light, 1000)
+
+multipleStateChangeInOneRequest(light, 4000)
+
+alert(light, 10000)
+effect(light, 10000)
 
 // Use virtual groups to group any HueLight (Groups, VirtualGroups and LightBulbs) on the client side
-if(!bridge.lightIds.contains(3)) {
-    println("Did not find expected light with id=3.")
-    System.exit(3)
-}
-HueVirtualLightGroup virtualGroup = new HueVirtualLightGroup(bridge, 1, "Virtual group with a very long name", light)
-HueVirtualLightGroup virtualGroup2 = new HueVirtualLightGroup(bridge, 2, "Subgroup", bridge.getLight(3))
-virtualGroup.add(virtualGroup2)
-listVirtualGroups(bridge)
-virtualGroup.transitionTime = 1
-blinkOnce(virtualGroup, 1000)
-virtualGroup.stateChangeTransaction(2000) {
-    virtualGroup.saturation = 0
-    virtualGroup.colorTemperature = 400
-    virtualGroup.brightness = 255
-}
+createVirtualGroup(bridge, light)
 
 pollForExternalStateChanges(light, 30000)
+
+searchForNewLights(bridge)
+
+def searchForNewLights(HueBridge bridge) {
+    def active = bridge.scanActive
+    println((active ? "A" : "No")+" search is currently active")
+    if(!active) {
+        println("Starting search for new lights")
+        bridge.searchForNewLights()
+    }
+    def start = System.currentTimeMillis()
+    while(System.currentTimeMillis()-start<65000) {
+        Thread.sleep(2000)
+        Collection<? extends HueLightBulb> newLights = bridge.getNewLights()
+        if(!newLights) {
+            if(bridge.scanActive) {
+                print(".")
+            } else {
+                println("No new lights found.")
+                break;
+            }
+        } else {
+            println(bridge.name + " found " + newLights.size() + " new lights:")
+            for(HueLightBulb light : newLights) {
+                println(light)
+            }
+        }
+    }
+}
 
 def pollForExternalStateChanges(HueLightBulb light, int pollMillis) {
     def start = System.currentTimeMillis()
@@ -92,6 +102,24 @@ def pollForExternalStateChanges(HueLightBulb light, int pollMillis) {
         lastOn = nowOn
     }
     println()
+}
+
+def createVirtualGroup(HueBridge bridge, HueLightBulb light) {
+    if(!bridge.lightIds.contains(3)) {
+        println("Did not find expected light with id=3.")
+        System.exit(3)
+    }
+    HueVirtualLightGroup virtualGroup = new HueVirtualLightGroup(bridge, 1, "Virtual group with a very long name", light)
+    HueVirtualLightGroup virtualGroup2 = new HueVirtualLightGroup(bridge, 2, "Subgroup", bridge.getLight(3))
+    virtualGroup.add(virtualGroup2)
+    listVirtualGroups(bridge)
+    virtualGroup.transitionTime = 1
+    blinkOnce(virtualGroup, 1000)
+    virtualGroup.stateChangeTransaction(2000) {
+        virtualGroup.saturation = 0
+        virtualGroup.colorTemperature = 400
+        virtualGroup.brightness = 255
+    }
 }
 
 def listVirtualGroups(HueBridge bridge) {
