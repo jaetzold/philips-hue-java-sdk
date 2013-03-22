@@ -5,7 +5,6 @@ import de.jaetzold.philips.hue.HueLightBulb
  Still to to:
  * light alert
  * light effect
- * ? groovy closure mixin for the state change transaction?
 
  * group as a variant of light (has the same properties and capabilities after all)
  * Will not create new groups on hub until delete is possible (Groups are limited to 16 and i don't want to be responsible for this being full)
@@ -48,10 +47,11 @@ HueLightBulb light = hub.getLight(hub.lightIds[0])
 
 light.on = true;
 blinkOnce(light, 1000)
-//sweepBrightness(light, 1000)
-//sweepHueSaturation(light, 1000)
-//sweepCieXY(light, 1000)
-//sweepColorTemperature(light, 1000)
+
+sweepBrightness(light, 1000)
+sweepHueSaturation(light, 1000)
+sweepCieXY(light, 1000)
+sweepColorTemperature(light, 1000)
 
 multipleStateChangeInOneRequest(light, 4000)
 
@@ -65,15 +65,14 @@ def multipleStateChangeInOneRequest(HueLightBulb light, int transisitonMillis) {
             light.brightness = 100
         }
     })
-    light.stateChangeTransaction((int)Math.round(transisitonMillis/100.0), new Runnable() {
-        @Override
-        void run() {
-            light.hue = HueLightBulb.HUE_GREEN  // Will be ignored because overwritten later in the transaction
-            light.saturation = 255
-            light.brightness = 255
-            light.hue = HueLightBulb.HUE_BLUE
-        }
-    })
+    // or a bit groovier using closures
+    light.stateChangeTransaction((int)Math.round(transisitonMillis/100.0)) {
+        light.hue = HueLightBulb.HUE_GREEN  // Will be ignored because overwritten later in the transaction
+        light.saturation = 255
+        light.brightness = 255
+        light.hue = HueLightBulb.HUE_BLUE
+    }
+    Thread.sleep(transisitonMillis)
 }
 
 def sweepColorTemperature(HueLightBulb light, int waitMillis) {
