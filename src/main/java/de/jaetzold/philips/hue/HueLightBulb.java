@@ -3,6 +3,7 @@ package de.jaetzold.philips.hue;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONStringer;
+import org.json.JSONWriter;
 
 import java.util.Arrays;
 import java.util.List;
@@ -29,11 +30,11 @@ public class HueLightBulb {
 	double ciey;
 	int colorTemperature;
 	ColorMode colorMode;
+	Integer transitionTime;
 
 	public static enum ColorMode {
 		HS,CT,XY
 	}
-
 
 	HueLightBulb(HueHub hub, Integer id) {
 		if(id==null || id<0) {
@@ -52,6 +53,14 @@ public class HueLightBulb {
 
 	public HueHub getHub() {
 		return hub;
+	}
+
+	public Integer getTransitionTime() {
+		return transitionTime;
+	}
+
+	public void setTransitionTime(Integer transitionTime) {
+		this.transitionTime = transitionTime;
 	}
 
 	public String getName() {
@@ -98,6 +107,7 @@ public class HueLightBulb {
 		}
 		stateChange("hue", hue);
 		this.hue = hue;
+		colorMode = ColorMode.HS;
 	}
 
 	public int getSaturation() {
@@ -110,6 +120,7 @@ public class HueLightBulb {
 		}
 		stateChange("sat", saturation);
 		this.saturation = saturation;
+		colorMode = ColorMode.HS;
 	}
 
 	public double getCiex() {
@@ -137,6 +148,7 @@ public class HueLightBulb {
 		stateChange("xy", new JSONArray(Arrays.asList((float)ciex,(float)ciey)));
 		this.ciex = ciex;
 		this.ciey = ciey;
+		colorMode = ColorMode.XY;
 	}
 
 	public int getColorTemperature() {
@@ -149,6 +161,7 @@ public class HueLightBulb {
 		}
 		stateChange("ct", colorTemperature);
 		this.colorTemperature = colorTemperature;
+		colorMode = ColorMode.CT;
 	}
 
 	public ColorMode getColorMode() {
@@ -166,7 +179,11 @@ public class HueLightBulb {
 	}
 
 	private List<JSONObject> stateChange(String param, Object value) {
-		return hub.checkedSuccessRequest(PUT, "/lights/" + getId() + "/state", JO().key(param).value(value));
+		JSONWriter json = JO();
+		if(transitionTime!=null) {
+			json = json.key("transitiontime").value(transitionTime);
+		}
+		return hub.checkedSuccessRequest(PUT, "/lights/" + getId() + "/state", json.key(param).value(value));
 	}
 
 	/**

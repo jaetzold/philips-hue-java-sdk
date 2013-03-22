@@ -3,9 +3,9 @@ import de.jaetzold.philips.hue.HueLightBulb
 
 /**
  Still to to:
+ * light transitiontime
  * light alert
  * light effect
- * light transitiontime
  * light bulk state change
 
  * group as a variant of light (has the same properties and capabilities after all)
@@ -47,6 +47,7 @@ if(hubs.lights.isEmpty()) {
 }
 HueLightBulb light = hub.getLight(hub.lightIds[0])
 
+light.on = true;
 blinkOnce(light, 1000)
 sweepBrightness(light, 1000)
 sweepHueSaturation(light, 1000)
