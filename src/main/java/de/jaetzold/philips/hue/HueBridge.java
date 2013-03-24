@@ -23,6 +23,32 @@ import java.util.logging.Logger;
 import static de.jaetzold.philips.hue.HueBridgeComm.RM.*;
 
 /**
+ * Represents the properties and abilities of a Philips hue Bridge.
+ * Bridges on the local network can be discovered using
+ * <code>{@link #discover() HueBridge.discover()}</code>
+ * which does a UPnP search for any bridges.
+ * <p>
+ *     In order to use the lights it is necessary to call {@link #authenticate(boolean)}.
+ *     It checks that a username provided with {@link #setUsername(String)}
+ *     is allowed for the bridge. If not and the method is called with <code>true</code> as parameter
+ *     it waits for up to 30 seconds for the link button on the bridge to be pressed so that access is granted for a new user.
+ *     It is not necessary to provide a name for the new user, a random one will be generated then.
+ * </p>
+ * <p>
+ *     Save the username along with the UDN obtained via {@link #getUDN()} to later use it again with the same bridge device.
+ * </p>
+ * <p>
+ *     An authenticated bridge provides the lights and groups via corresponding get methods and can be told to
+ *     initiate a search for new lights.
+ * </p>
+ * <p>
+ *     Any problem communicating with the bridge device will result in a {@link HueCommException} to be thrown which carries
+ *     the error json with more information.
+ * </p>
+ *
+ * @see HueLightBulb
+ * @see HueLightGroup
+ * @see HueVirtualLightGroup
  *
  * @author Stephan Jaetzold <p><small>Created at 20.03.13, 15:10</small>
  */
@@ -42,6 +68,13 @@ public class HueBridge {
 	 */
 	public static int discoveryAttempts = 3;
 
+	/**
+	 * Do a UPnP search for Philips hue bridges on the local network.
+	 * The returned bridges are not authenticated and not synced.
+	 * So all information at that point will be the base URL and UPnP UDN.
+	 *
+	 * @return All Philips hue bridges discovered on the local network. If none are found an empty list is returned.
+	 */
 	public static List<HueBridge> discover() {
 		return HueBridgeComm.discover();
 	}
@@ -79,18 +112,40 @@ public class HueBridge {
 		groups.put(0, group);
 	}
 
+	/**
+	 * The base URL of the Philips hue bridge REST API this bridge instance connects to.
+	 *
+	 * @return The base URL of the Philips hue bridge REST API this bridge instance connects to.
+	 */
 	public URL getBaseUrl() {
 		return comm.baseUrl;
 	}
 
+	/**
+	 * The UPnP unique device identifier string of the bridge.
+	 * It can be used to identify the same bridge device later even if its IP changes due to some other configuration.
+	 *
+	 * @return The UPnP unique device identifier string of the bridge.
+	 */
 	public String getUDN() {
 		return UDN;
 	}
 
+	/**
+	 * @return The username that is used to connect to the bridge device. Or null if this bridge is not authenticated and no username was explicitly set.
+	 */
 	public String getUsername() {
 		return username;
 	}
 
+	/**
+	 * Set the username to use with this bridge.
+	 * If this is different from the previous username the bridge needs to be authenticated again.
+	 *
+	 * @see #authenticate(boolean)
+	 *
+	 * @param username A username to authenticate with. May be null (in which case one will be generated on successful authentication)
+	 */
 	public void setUsername(String username) {
 		if(username!=null && !username.matches("\\s*[-\\w]{10,40}\\s*")) {
 			throw new IllegalArgumentException("A username must be 10-40 characters long and may only contain the characters -,_,a-b,A-B,0-9");
@@ -99,19 +154,42 @@ public class HueBridge {
 		this.username = username==null ? username : username.trim();
 	}
 
+	/**
+	 * Being authenticated means the current username has already been checked to be accepted by the bridge API found at {@link #getBaseUrl()}.
+	 * @return true if the current username is allowed by the bridge device.
+	 */
 	public boolean isAuthenticated() {
 		return authenticated;
 	}
 
+	/**
+	 * Check for the current username to be allowed by the bridge device. Or generate and use a random user if none has been set with
+	 * {@link #setUsername(String)}. If the parameter <code>waitForGrant</code> is true and the currently set username is not allowed
+	 * by the bridge wait for up to 30 seconds for the link button on the bridge to be pressed to get an allowed username.
+	 *
+	 * @param waitForGrant true if the method should wait for up to 30 seconds for the link button to be pressed
+	 * @return true if authentication was successful.
+	 */
 	public boolean authenticate(boolean waitForGrant) {
 		return authenticate(username, waitForGrant);
 	}
 
+	/**
+	 * The name that has been assigned to the bridge device.
+	 * @return The name that has been assigned to the bridge device.
+	 */
 	public String getName() {
 		checkAuthAndSync();
 		return name;
 	}
 
+	/**
+	 * Assign a new name to the bridge device. This name is actually sent to and stored on the device.
+	 * It must be between 4 and 16 characters long.
+	 * See <a href="http://developers.meethue.com/4_configurationapi.html#43_modify_configuration">Philips hue API, Section 4.3</a> for further reference.
+	 *
+	 * @param name The new name of the bridge device.
+	 */
 	public void setName(String name) {
 		if(name==null || name.trim().length()<4 || name.trim().length()>16) {
 			throw new IllegalArgumentException("Name (without leading or trailing whitespace) has to be 4-16 characters long");
@@ -120,16 +198,37 @@ public class HueBridge {
 		this.name = name;
 	}
 
+	/**
+	 * Provide a collection of all hue lights that are currently known by the bridge.
+	 * On adding completely new lights call {@link #searchForNewLights()} so that the bridge device finds and connects those new lights.
+	 *
+	 * @see #getLight(int)
+	 * @see #getLightIds()
+	 *
+	 * @return A collection of all hue lights that are currently known by the bridge.
+	 */
 	public Collection<? extends HueLightBulb> getLights() {
 		checkAuthAndSync();
 		return lights.values();
 	}
 
+	/**
+	 * Get a light with a known id. Either saved from earlier or from the ids returned by {@link #getLightIds()}.
+	 *
+	 * @param id the id of the light to return
+	 *
+	 * @return A {@link HueLightBulb} with the given id or null if none with that id is known.
+	 */
 	public HueLightBulb getLight(int id) {
 		checkAuthAndSync();
 		return lights.get(id);
 	}
 
+	/**
+	 * The ids of all the lights known to this bridge device.
+	 *
+	 * @return The ids of all the lights known to this bridge device.
+	 */
 	public Set<Integer> getLightIds() {
 		checkAuthAndSync();
 		return Collections.unmodifiableSet(lights.keySet());
