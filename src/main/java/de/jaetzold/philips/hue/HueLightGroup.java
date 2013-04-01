@@ -15,11 +15,20 @@ import java.util.TreeMap;
 import static de.jaetzold.philips.hue.HueBridgeComm.RM.PUT;
 
 /**
+ * This class represents a group of lights that is defined on the hue bridge device. By convention, the group with the id '0' always
+ * exists and contains all lights connected to the bridge device.
+ * <p>
+ *     An instance of this class is not created directly. Instead query a {@link HueBridge} for its groups using either
+ *     {@link HueBridge#getGroups()}or {@link HueBridge#getGroup(Integer)}.
+ * </p>
  *
  * Note: Group creation and deletion is not supported as of Philips Hue API version 1.0.
- * So effectively only the implicit group 0 containing all the lights can be used.
+ * So effectively only the implicit group 0 containing all the lights can be used. But see {@link HueVirtualLightGroup} for a way around that.
  *
- * @author Stephan Jaetzold <p><small>Created at 22.03.13, 14:10</small> */
+ * <p>See <a href="http://developers.meethue.com/2_groupsapi.html">Philips hue API, Section 2</a> for further reference.</p>
+ *
+ * @author Stephan Jaetzold <p><small>Created at 22.03.13, 14:10</small>
+ */
 public class HueLightGroup implements HueLight {
 	final Integer id;
 	final HueBridge bridge;
@@ -29,10 +38,16 @@ public class HueLightGroup implements HueLight {
 
 	Integer transitionTime;
 
+	/**
+	 * This constructor is package private, since groups are (at least for the moment) not to be created. A {@link HueBridge} is queried for them.
+	 */
 	HueLightGroup(HueBridge bridge, Integer id) {
 		this(bridge, id, null);
 	}
 
+	/**
+	 * This constructor is package private, since groups are (at least for the moment) not to be created. A {@link HueBridge} is queried for them.
+	 */
 	HueLightGroup(HueBridge bridge, Integer id, Map<Integer, HueLightBulb> lights) {
 		if(id==null || id<0) {
 			throw new IllegalArgumentException("id has to be non-negative and non-null");
@@ -84,18 +99,47 @@ public class HueLightGroup implements HueLight {
 		this.name = actualName!=null ? actualName : name;
 	}
 
+	/**
+	 * Provide a collection of all light bulbs that are currently in this group.
+	 *
+	 * @see #getLight(Integer)
+	 * @see #getLightIds()
+	 *
+	 * @return A collection of all light bulbs that are currently in this group.
+	 */
 	public Collection<? extends HueLightBulb> getLights() {
 		return lights.values();
 	}
 
-	public HueLightBulb getLight(int id) {
+	/**
+	 * Get a light bulb with a known id. Either saved from earlier or from the ids returned by {@link #getLightIds()}.
+	 *
+	 * @param id the id of the light bulb to return
+	 *
+	 * @return A {@link HueLightBulb} with the given id or null if none with that id is currently in this group.
+	 */
+	public HueLightBulb getLight(Integer id) {
 		return lights.get(id);
 	}
 
+	/**
+	 * The ids of all the light bulbs currently in this group.
+	 *
+	 * @return The ids of all the light bulbs currently in this group.
+	 */
 	public Set<Integer> getLightIds() {
 		return lights.keySet();
 	}
 
+	/**
+	 * Add a light bulb to this group. The light must belong to the same bridge as this group.
+	 *
+	 * <p>Note: This is not supported by version 1.0 of the Philips Hue API and you will get an exception if an unsupported modification is attempted.</p>
+	 *
+	 * @param light the light to add to this group
+	 * @return true, if the group was modified as a result of this call, false otherwise.
+	 */
+	@SuppressWarnings("UnusedDeclaration")
 	public boolean add(HueLightBulb light) {
 		if(light.getBridge()!=getBridge()) {
 			throw new IllegalArgumentException("A group can only contain lights from the same bridge");
@@ -106,6 +150,16 @@ public class HueLightGroup implements HueLight {
 		throw new UnsupportedOperationException("This is not supported by version 1.0 of the Philips Hue API");
 	}
 
+	/**
+	 * Remove a light bulb from this group. The light must belong to the same bridge as this group, but is not required to actually be in this group,
+	 * the group will just not be modified then.
+	 *
+	 * <p>Note: This is not supported by version 1.0 of the Philips Hue API and you will get an exception if an unsupported modification is attempted.</p>
+	 *
+	 * @param light the light to remove from this group
+	 * @return true, if the group was modified as a result of this call, false otherwise.
+	 */
+	@SuppressWarnings("UnusedDeclaration")
 	public boolean remove(HueLightBulb light) {
 		if(light.getBridge()!=getBridge()) {
 			throw new IllegalArgumentException("A group may only contain lights from the same bridge");
@@ -117,7 +171,7 @@ public class HueLightGroup implements HueLight {
 	}
 
 	@Override
-	public void setOn(boolean on) {
+	public void setOn(Boolean on) {
 		stateChange("on", on);
 		for(HueLightBulb light : getLights()) {
 			light.on = on;
@@ -125,7 +179,7 @@ public class HueLightGroup implements HueLight {
 	}
 
 	@Override
-	public void setBrightness(int brightness) {
+	public void setBrightness(Integer brightness) {
 		if(brightness<0 || brightness>255) {
 			throw new IllegalArgumentException("Brightness must be between 0-255");
 		}
@@ -136,7 +190,7 @@ public class HueLightGroup implements HueLight {
 	}
 
 	@Override
-	public void setHue(int hue) {
+	public void setHue(Integer hue) {
 		if(hue<0 || hue>65535) {
 			throw new IllegalArgumentException("Hue must be between 0-65535");
 		}
@@ -147,7 +201,7 @@ public class HueLightGroup implements HueLight {
 	}
 
 	@Override
-	public void setSaturation(int saturation) {
+	public void setSaturation(Integer saturation) {
 		if(saturation<0 || saturation>255) {
 			throw new IllegalArgumentException("Saturation must be between 0-255");
 		}
@@ -158,11 +212,11 @@ public class HueLightGroup implements HueLight {
 	}
 
 	@Override
-	public void setCieXY(double ciex, double ciey) {
+	public void setCieXY(Double ciex, Double ciey) {
 		if(ciex<0 || ciex>1 || ciey<0 || ciey>1) {
 			throw new IllegalArgumentException("A cie coordinate must be between 0.0-1.0");
 		}
-		stateChange("xy", new JSONArray(Arrays.asList((float)ciex,(float)ciey)));
+		stateChange("xy", new JSONArray(Arrays.asList(ciex.floatValue(),ciey.floatValue())));
 		for(HueLightBulb light : getLights()) {
 			light.ciex = ciex;
 			light.ciey = ciey;
@@ -170,7 +224,7 @@ public class HueLightGroup implements HueLight {
 	}
 
 	@Override
-	public void setColorTemperature(int colorTemperature) {
+	public void setColorTemperature(Integer colorTemperature) {
 		if(colorTemperature<153 || colorTemperature>500) {
 			throw new IllegalArgumentException("ColorTemperature must be between 153-500");
 		}
@@ -221,6 +275,10 @@ public class HueLightGroup implements HueLight {
 		}
 	}
 
+	// *****************************************
+	// Implementation internal methods
+	// *****************************************
+
 	private ThreadLocal<JSONObject> stateTransactionJson = new ThreadLocal<>();
 	private void openStateChangeTransaction(Integer transitionTime) {
 		if(stateTransactionJson.get()==null) {
@@ -236,7 +294,11 @@ public class HueLightGroup implements HueLight {
 	private List<JSONObject> commitStateChangeTransaction() {
 		final JSONObject json = stateTransactionJson.get();
 		stateTransactionJson.set(null);
-		return bridge.checkedSuccessRequest(PUT, "/lights/" + getId() + "/state", json);
+		if(json!=null) {
+			return bridge.checkedSuccessRequest(PUT, "/groups/" + getId() + "/state", json);
+		} else {
+			return null;
+		}
 	}
 
 	private List<JSONObject> stateChange(String param, Object value) {

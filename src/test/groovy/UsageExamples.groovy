@@ -5,6 +5,8 @@ import de.jaetzold.philips.hue.HueLightGroup
 import de.jaetzold.philips.hue.HueVirtualLightGroup
 
 /**
+ * A simple Demo/Test script for the philips-hue-java-sdk
+ *
  Future
  * Group creation/deletion when Bridge API supports that.
  * Schedules support.
@@ -19,6 +21,7 @@ import de.jaetzold.philips.hue.HueVirtualLightGroup
  * <p><small>Created at 15.03.13, 16:23</small>
  */
 
+/* Discover and connect to a hue bridge. May be necessary to press the button on the bridge the first time this is used. */
 List<HueBridge> bridges = discoverAndAuthenticate()
 
 if(bridges.isEmpty()) {
@@ -27,9 +30,12 @@ if(bridges.isEmpty()) {
 }
 HueBridge bridge = bridges.get(0)
 
+/* Query for all lights on the bridge */
 listLights(bridge)
+/* Query for all groups on the bridge */
 listGroups(bridge)
 
+/* Change bridge state */
 bridge.setName("Jaetzold's Hue")
 println("After changing name: " +bridge)
 
@@ -39,6 +45,7 @@ if(bridge.lights.isEmpty()) {
 }
 HueLightBulb light = bridge.getLight(bridge.lightIds[0])
 
+/* Change various light states */
 light.on = true;
 blinkOnce(light, 1000)
 HueLightGroup group = bridge.getGroup(0)
@@ -56,12 +63,21 @@ multipleStateChangeInOneRequest(light, 4000)
 alert(light, 10000)
 effect(light, 10000)
 
-// Use virtual groups to group any HueLight (Groups, VirtualGroups and LightBulbs) on the client side
+/* Use virtual groups to group any HueLight (Groups, VirtualGroups and LightBulbs) on the client side */
 createVirtualGroup(bridge, light)
 
+/*
+Since no events are supported currently by the API implementation, reacting to change requires manual polling.
+Tune the performance of this by modifying HueLightBulb.setAutoSyncInterval(Integer)
+*/
 pollForExternalStateChanges(light, 30000)
 
+/* How to get the bridge to recognize newly added light bulbs. Not tested. */
 searchForNewLights(bridge)
+
+// *****************************************
+// Demo methods
+// *****************************************
 
 def searchForNewLights(HueBridge bridge) {
     def active = bridge.scanActive
@@ -308,6 +324,8 @@ def discoverAndAuthenticate() {
     List<HueBridge> bridges = HueBridge.discover()
     for(HueBridge bridge : bridges) {
         println("Found " + bridge)
+        // You may need a better scheme to store your username that to just hardcode it.
+        // suggestion: Save a mapping from HueBridge.getUDN() to HueBridge.getUsername() somewhere.
         bridge.username = '8aefa072a354a7f113f6bf72b173e6f';
         if(!bridge.authenticate(false)) {
             println("Press the button on your Hue bridge in the next 30 seconds to grant access.")

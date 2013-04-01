@@ -99,6 +99,7 @@ public class HueBridge {
 	 * @param address The IP Adress of the Philips Hue Bridge
 	 * @param username A username to authenticate with. May be null (in which case one will be generated on successful authentication)
 	 */
+	@SuppressWarnings("UnusedDeclaration")
 	public HueBridge(InetAddress address, String username) {
 		this(constructBaseUrlFor(address), username);
 	}
@@ -167,6 +168,8 @@ public class HueBridge {
 	 * {@link #setUsername(String)}. If the parameter <code>waitForGrant</code> is true and the currently set username is not allowed
 	 * by the bridge wait for up to 30 seconds for the link button on the bridge to be pressed to get an allowed username.
 	 *
+	 * @see #authenticate(String, boolean)
+	 *
 	 * @param waitForGrant true if the method should wait for up to 30 seconds for the link button to be pressed
 	 * @return true if authentication was successful.
 	 */
@@ -186,7 +189,7 @@ public class HueBridge {
 	/**
 	 * Assign a new name to the bridge device. This name is actually sent to and stored on the device.
 	 * It must be between 4 and 16 characters long.
-	 * See <a href="http://developers.meethue.com/4_configurationapi.html#43_modify_configuration">Philips hue API, Section 4.3</a> for further reference.
+	 * <p>See <a href="http://developers.meethue.com/4_configurationapi.html#43_modify_configuration">Philips hue API, Section 4.3</a> for further reference.</p>
 	 *
 	 * @param name The new name of the bridge device.
 	 */
@@ -202,7 +205,7 @@ public class HueBridge {
 	 * Provide a collection of all hue lights that are currently known by the bridge.
 	 * On adding completely new lights call {@link #searchForNewLights()} so that the bridge device finds and connects those new lights.
 	 *
-	 * @see #getLight(int)
+	 * @see #getLight(Integer)
 	 * @see #getLightIds()
 	 *
 	 * @return A collection of all hue lights that are currently known by the bridge.
@@ -219,7 +222,7 @@ public class HueBridge {
 	 *
 	 * @return A {@link HueLightBulb} with the given id or null if none with that id is known.
 	 */
-	public HueLightBulb getLight(int id) {
+	public HueLightBulb getLight(Integer id) {
 		checkAuthAndSync();
 		return lights.get(id);
 	}
@@ -234,33 +237,90 @@ public class HueBridge {
 		return Collections.unmodifiableSet(lights.keySet());
 	}
 
+	/**
+	 * Provide a collection of all groups that are currently defined on the bridge.
+	 *
+	 * @see #getGroup(Integer)
+	 * @see #getGroupIds()
+	 *
+	 * @return A collection of all groups that are currently defined on the bridge.
+	 */
 	public Collection<? extends HueLightGroup> getGroups() {
 		checkAuthAndSync();
 		return groups.values();
 	}
 
-	public HueLightGroup getGroup(int id) {
+	/**
+	 * Get a group with a known id. Either saved from earlier or from the ids returned by {@link #getGroupIds()}.
+	 *
+	 * @param id the id of the group to return
+	 *
+	 * @return A {@link HueLightGroup} with the given id or null if none with that id exists.
+	 */
+	public HueLightGroup getGroup(Integer id) {
 		checkAuthAndSync();
 		return groups.get(id);
 	}
 
+	/**
+	 * The ids of all the groups defined on this bridge device.
+	 *
+	 * @return The ids of all the groups defined on this bridge device.
+	 */
 	public Set<Integer> getGroupIds() {
 		checkAuthAndSync();
 		return Collections.unmodifiableSet(groups.keySet());
 	}
 
+	/**
+	 * Provide a collection of all {@link HueVirtualLightGroup} instances that are currently defined on this bridge API instance.
+	 *
+	 * @see HueVirtualLightGroup
+	 * @see #getVirtualGroup(Integer)
+	 * @see #getVirtualGroupIds()
+	 *
+	 * @return A collection of all virtual groups that are currently defined on this bridge API instance.
+	 */
 	public Collection<HueVirtualLightGroup> getVirtualGroups() {
 		return virtualGroups.values();
 	}
 
-	public HueVirtualLightGroup getVirtualGroup(int id) {
+	/**
+	 * Get a virtual group with a known id. Either saved from earlier or from the ids returned by {@link #getVirtualGroupIds()}.
+	 *
+	 * @param id the id of the virtual group to return
+	 *
+	 * @return A {@link HueVirtualLightGroup} with the given id or null if none with that id is defined on this bridge API instance.
+	 */
+	@SuppressWarnings("UnusedDeclaration")
+	public HueVirtualLightGroup getVirtualGroup(Integer id) {
 		return virtualGroups.get(id);
 	}
 
+	/**
+	 * The ids of all the virtual groups defined on this bridge API instance.
+	 *
+	 * @return The ids of all the virtual groups defined on this bridge API instance.
+	 */
 	public Set<Integer> getVirtualGroupIds() {
 		return virtualGroups.keySet();
 	}
 
+	/**
+	 * Attempt to verify the given username is allowed to access the bridge instance.
+	 * If the username is not allowed (or not given, meaning <code>null</code>) and <code>waitForGrant</code> is <code>true</code>,
+	 * the method then waits for up to 30 seconds to be granted access to the bridge. This would be done by pressing the bridges button.
+	 * If authentication succeeds, the username for which it succeeded is then saved and the method returns <code>true</code>.
+	 *
+	 * <p>See <a href="http://developers.meethue.com/4_configurationapi.html#41_create_user">Philips hue API, Section 4.1</a> for further reference.</p>
+	 *
+	 * @see #authenticate(boolean)
+	 *
+	 * @param usernameToTry a username to authenticate with or null if a new one should be generated by the bridge if access is granted through pressing the hardware button.
+	 * @param waitForGrant if true, this method blocks for up to 30 seconds or until access to the bridge is allowed, whichever comes first.
+	 *
+	 * @return true, if this bridge API instance has now a username that is verified to be allowed to access the bridge device.
+	 */
 	public boolean authenticate(String usernameToTry, boolean waitForGrant) {
 		if(usernameToTry!=null && !usernameToTry.matches("\\s*[-\\w]{10,40}\\s*")) {
 			throw new IllegalArgumentException("A username must be 10-40 characters long and may only contain the characters -,_,a-b,A-B,0-9");
@@ -381,6 +441,10 @@ public class HueBridge {
 	public String toString() {
 		return (initialSyncDone ? getName()+"@" : "<Unsynced Hue Bridge>@")+getBaseUrl()+"#"+getUDN();
 	}
+
+	// *****************************************
+	// Implementation internal methods
+	// *****************************************
 
 	private void completeSync(String username) {
 		try {

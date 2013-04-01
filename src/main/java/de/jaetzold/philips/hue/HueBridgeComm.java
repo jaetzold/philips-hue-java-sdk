@@ -19,12 +19,25 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Handler;
 import java.util.logging.Level;
+import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
-/** @author Stephan Jaetzold <p><small>Created at 21.03.13, 15:06</small> */
+/**
+ * Encapsulate the actual network communication with the bridge device
+ *
+ * @author Stephan Jaetzold <p><small>Created at 21.03.13, 15:06</small>
+ */
 class HueBridgeComm {
 	Logger log = Logger.getLogger(this.getClass().getName());
+//	{
+//		log.setLevel(Level.ALL);
+//		final ConsoleHandler handler = new ConsoleHandler();
+//		handler.setLevel(Level.ALL);
+//		log.addHandler(handler);
+//	}
 
 	final URL baseUrl;
 	private static final String REQUEST_CHARSET = "UTF-8";
@@ -36,6 +49,7 @@ class HueBridgeComm {
 		this.baseUrl = baseUrl;
 	}
 
+	@SuppressWarnings("UnusedDeclaration")
 	List<JSONObject> request(RM method, String fullPath, JSONObject json) throws IOException {
 		return request(method, fullPath, json.toString());
 	}
