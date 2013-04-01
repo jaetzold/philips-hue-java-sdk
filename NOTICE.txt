@@ -1,0 +1,3 @@
+This library includes code from
+https://github.com/douglascrockford/JSON-java
+for which a different license applies. See the files under src/main/java/org/json for specifics.
