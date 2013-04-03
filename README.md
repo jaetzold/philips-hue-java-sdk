@@ -6,6 +6,10 @@ But since the API of the Hue is JSON based, code from the following project has 
 https://github.com/douglascrockford/JSON-java
 ( actual commit used: b883a848a6af94db57e1b8223ab9b6d96707a9e7 )
 
+The SDK supports the lights and groups API completely and even supports groups across multiple bridges.
+It is currently missing support for the schedules API. From the configuration API only the user and name configuration is implemented
+since i currently see no use for the other parts. But it would be very easy to add that.
+
 From what i can tell so far it works well. But some more "peripheral" methods are not really tested. For example the search for new lights.
 I would need light bulbs unknown to my bridge to do that.
 
